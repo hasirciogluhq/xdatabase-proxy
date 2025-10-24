@@ -15,7 +15,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o ./build/xdatabase-proxy apps/p
 
 echo "Building Docker image..."
 eval $(minikube docker-env -p local-test)
-docker build -f Dockerfile.test -t ghcr.io/hasirciogli/xdatabase-proxy-local-test:latest .
+docker build -f Dockerfile.test -t ghcr.io/hasirciogluhq/xdatabase-proxy-local-test:latest .
 
 echo "Creating namespaces if not exists..."
 if minikube kubectl -p local-test -- get namespace test >/dev/null 2>&1; then

@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"github.com/hasirciogli/xdatabase-proxy/pkg/postgresql"
+	"github.com/hasirciogluhq/xdatabase-proxy/pkg/postgresql"
 )
 
 var (

@@ -72,7 +72,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: xdatabase-proxy
-          image: ghcr.io/hasirciogli/xdatabase-proxy:latest
+          image: ghcr.io/hasirciogluhq/xdatabase-proxy:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5432

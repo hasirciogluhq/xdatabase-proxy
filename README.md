@@ -37,7 +37,7 @@ Currently, the following databases are supported:
 
 ```bash
 # Clone the project
-git clone https://github.com/hasirciogli/xdatabase-proxy.git
+git clone https://github.com/hasirciogluhq/xdatabase-proxy.git
 cd xdatabase-proxy
 
 # Install dependencies
@@ -222,7 +222,7 @@ kubectl apply -f kubernetes/examples/production/deploy.yaml
 Or, you can use the raw GitHub URL directly:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/hasirciogli/xdatabase-proxy/main/kubernetes/examples/production/deploy.yaml
+kubectl apply -f https://raw.githubusercontent.com/hasirciogluhq/xdatabase-proxy/main/kubernetes/examples/production/deploy.yaml
 ```
 
 ## How it works ?

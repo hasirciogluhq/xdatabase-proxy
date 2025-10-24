@@ -1,4 +1,4 @@
-module github.com/hasirciogli/xdatabase-proxy
+module github.com/hasirciogluhq/xdatabase-proxy
 
 go 1.23.4
 

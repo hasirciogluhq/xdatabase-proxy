@@ -1,13 +1,16 @@
-package postgresql
+package postgresql_proxy
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/core"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/logger"
@@ -24,11 +27,12 @@ type ErrorResponse struct {
 	Message  string
 }
 
-type PostgresHandler struct {
+type PostgresProxy struct {
 	TLSConfig *tls.Config
+	Resolver  core.BackendResolver
 }
 
-func (h *PostgresHandler) sendErrorResponse(conn net.Conn, errResp *ErrorResponse) error {
+func (p *PostgresProxy) sendErrorResponse(conn net.Conn, errResp *ErrorResponse) error {
 	var msgData []byte
 	msgData = append(msgData, 'S')
 	msgData = append(msgData, []byte(errResp.Severity)...)
@@ -55,22 +59,87 @@ func (h *PostgresHandler) sendErrorResponse(conn net.Conn, errResp *ErrorRespons
 	return writeErr
 }
 
-func (h *PostgresHandler) Handshake(conn net.Conn) (core.RoutingMetadata, net.Conn, error) {
+// HandleConnection implements core.ConnectionHandler.
+// It takes full ownership of the connection lifecycle.
+func (p *PostgresProxy) HandleConnection(clientConn net.Conn) {
+	defer clientConn.Close()
+
+	// 1. Handshake & Protocol Parsing
+	metadata, clientConn, rawStartupMsg, err := p.handshake(clientConn)
+	if err != nil {
+		logger.Error("Handshake failed", "error", err, "remote_addr", clientConn.RemoteAddr())
+		// Try to send error response if possible, but handshake error might mean we can't speak protocol
+		return
+	}
+
+	// 2. Resolve Backend
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	backendAddr, err := p.Resolver.Resolve(ctx, metadata)
+	if err != nil {
+		logger.Error("Resolution failed", "error", err, "remote_addr", clientConn.RemoteAddr())
+		_ = p.sendErrorResponse(clientConn, &ErrorResponse{
+			Severity: "FATAL",
+			Code:     "08001", // sqlclient_unable_to_establish_sqlconnection
+			Message:  fmt.Sprintf("resolution failed: %v", err),
+		})
+		return
+	}
+
+	// 3. Dial Backend
+	backendConn, err := net.Dial("tcp", backendAddr)
+	if err != nil {
+		logger.Error("Dial failed", "backend_addr", backendAddr, "error", err, "remote_addr", clientConn.RemoteAddr())
+		_ = p.sendErrorResponse(clientConn, &ErrorResponse{
+			Severity: "FATAL",
+			Code:     "08001",
+			Message:  fmt.Sprintf("failed to connect to backend %s: %v", backendAddr, err),
+		})
+		return
+	}
+	defer backendConn.Close()
+
+	// 4. Forward Startup Message
+	if _, err := backendConn.Write(rawStartupMsg); err != nil {
+		logger.Error("Failed to forward startup message", "error", err, "remote_addr", clientConn.RemoteAddr())
+		return
+	}
+
+	// 5. Pipe Data
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		io.Copy(backendConn, clientConn)
+	}()
+
+	go func() {
+		defer wg.Done()
+		io.Copy(clientConn, backendConn)
+	}()
+
+	wg.Wait()
+}
+
+// handshake performs the initial protocol handshake and returns metadata, the (potentially wrapped) connection, and the raw startup message bytes.
+func (p *PostgresProxy) handshake(conn net.Conn) (core.RoutingMetadata, net.Conn, []byte, error) {
 	// Read message length (4 bytes)
 	header := make([]byte, 4)
 	if _, err := io.ReadFull(conn, header); err != nil {
-		return nil, nil, fmt.Errorf("failed to read message length: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to read message length: %w", err)
 	}
 
 	length := int32(binary.BigEndian.Uint32(header))
 	if length < 4 {
-		return nil, nil, fmt.Errorf("invalid message length: %d", length)
+		return nil, nil, nil, fmt.Errorf("invalid message length: %d", length)
 	}
 
 	// Read message body
 	payload := make([]byte, length-4)
 	if _, err := io.ReadFull(conn, payload); err != nil {
-		return nil, nil, fmt.Errorf("failed to read message body: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to read message body: %w", err)
 	}
 
 	// Check for SSLRequest
@@ -79,18 +148,18 @@ func (h *PostgresHandler) Handshake(conn net.Conn) (core.RoutingMetadata, net.Co
 		if code == sslRequestCode {
 			// Send 'S' to accept SSL
 			if _, err := conn.Write([]byte{'S'}); err != nil {
-				return nil, nil, fmt.Errorf("failed to write SSL response: %w", err)
+				return nil, nil, nil, fmt.Errorf("failed to write SSL response: %w", err)
 			}
 
 			// Upgrade connection
-			tlsConn := tls.Server(conn, h.TLSConfig)
+			tlsConn := tls.Server(conn, p.TLSConfig)
 			if err := tlsConn.Handshake(); err != nil {
-				_ = h.sendErrorResponse(conn, &ErrorResponse{
+				_ = p.sendErrorResponse(conn, &ErrorResponse{
 					Severity: "FATAL",
 					Code:     "08006",
 					Message:  fmt.Sprintf("TLS handshake failed: %v", err),
 				})
-				return nil, nil, fmt.Errorf("tls handshake failed: %w", err)
+				return nil, nil, nil, fmt.Errorf("tls handshake failed: %w", err)
 			}
 
 			state := tlsConn.ConnectionState()
@@ -100,14 +169,13 @@ func (h *PostgresHandler) Handshake(conn net.Conn) (core.RoutingMetadata, net.Co
 				"remote_addr", conn.RemoteAddr())
 
 			// Recursively parse the StartupMessage from the encrypted stream
-			return h.Handshake(tlsConn)
+			return p.handshake(tlsConn)
 		}
 	}
 
 	// Parse StartupMessage
-	// Format: Protocol(4 bytes) + Key\0Value\0...
 	if len(payload) < 4 {
-		return nil, nil, fmt.Errorf("payload too short")
+		return nil, nil, nil, fmt.Errorf("payload too short")
 	}
 
 	params := make(map[string]string)
@@ -119,7 +187,7 @@ func (h *PostgresHandler) Handshake(conn net.Conn) (core.RoutingMetadata, net.Co
 			break
 		}
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		key = key[:len(key)-1] // Trim null byte
 
@@ -129,7 +197,7 @@ func (h *PostgresHandler) Handshake(conn net.Conn) (core.RoutingMetadata, net.Co
 
 		value, err := buf.ReadString(0)
 		if err != nil {
-			return nil, nil, fmt.Errorf("malformed startup message")
+			return nil, nil, nil, fmt.Errorf("malformed startup message")
 		}
 		value = value[:len(value)-1] // Trim null byte
 
@@ -137,12 +205,10 @@ func (h *PostgresHandler) Handshake(conn net.Conn) (core.RoutingMetadata, net.Co
 	}
 
 	// Parse username to extract deployment_id and pool status
-	// Format: username.deployment_id[.pool]
 	if user, ok := params["user"]; ok {
 		logger.Info("Connection requested", "user", user, "remote_addr", conn.RemoteAddr())
 		parts := strings.Split(user, ".")
 		if len(parts) >= 2 {
-			// Check for .pool suffix
 			if parts[len(parts)-1] == "pool" {
 				params["pooled"] = "true"
 				if len(parts) >= 3 {
@@ -155,77 +221,33 @@ func (h *PostgresHandler) Handshake(conn net.Conn) (core.RoutingMetadata, net.Co
 				params["username"] = strings.Join(parts[:len(parts)-1], ".")
 			}
 		} else {
-			// Fallback or default behavior if format doesn't match
-			// Maybe treat the whole user as username and no deployment_id?
-			// Or fail? For now, let's just keep it as is, resolver might fail.
 			params["pooled"] = "false"
 		}
 	}
 
-	// Rebuild startup message with modified username if needed
-	// Note: The current implementation returns metadata and the connection.
-	// The actual forwarding logic (which needs the rebuilt message) is likely in the Server loop.
-	// However, the ProtocolHandler interface currently only returns metadata and conn.
-	// If we need to modify the startup message sent to the backend, we might need to store it in metadata
-	// or change the interface.
-	// For now, let's store the raw rebuilt message in metadata with a special key if we modified the user.
+	var rawStartupMsg []byte
 
 	if originalUser, ok := params["user"]; ok {
 		if newUser, ok := params["username"]; ok && newUser != originalUser {
-			// We modified the username, so we need to rebuild the startup message
-			// Use the original protocol version from payload
+			// Rebuild startup message with new username
 			protocolVersion := binary.BigEndian.Uint32(payload[0:4])
-
-			// Create a copy of params for rebuilding to avoid modifying the map used for metadata
 			buildParams := make(map[string]string)
 			for k, v := range params {
-				// Filter out internal metadata keys
 				if k != "deployment_id" && k != "pooled" && k != "username" {
 					buildParams[k] = v
 				}
 			}
-			// Use the new username
 			buildParams["user"] = newUser
-
-			rebuiltMsg := rebuildStartupMessage(protocolVersion, buildParams)
-			params["_raw_startup_message"] = string(rebuiltMsg)
+			rawStartupMsg = rebuildStartupMessage(protocolVersion, buildParams)
 		} else {
-			// If we didn't modify the username, we can just use the original payload (plus header)
-			// But wait, the payload variable doesn't include the length header.
-			// And the Server likely expects to just forward bytes?
-			// The current Server implementation probably reads from the returned conn.
-			// But we have already read the startup message from the conn!
-			// So the Server cannot read it again from the conn.
-			// We must return a connection that "replays" the startup message, OR
-			// the Server must accept the startup message as data to send.
-
-			// Looking at the provided old handler:
-			// It calls `forwardConnection(conn, startupMsg, svc)`
-			// And `forwardConnection` writes `startupMsg.RawMessage` to the backend.
-
-			// Our current architecture separates Handshake from Proxying.
-			// The `Server.Serve` loop likely calls `Handshake`, gets metadata, resolves backend,
-			// and then... it needs to send the startup message to the backend.
-
-			// If the `ProtocolHandler` interface doesn't support returning the startup message,
-			// we have a problem.
-			// Let's check `cmd/proxy/internal/core/types.go` again.
-			// It returns `(RoutingMetadata, net.Conn, error)`.
-
-			// If we return the original `conn`, the startup message bytes are already consumed.
-			// We need to wrap the connection to replay the bytes, OR pass the bytes in metadata.
-			// Let's pass the bytes in metadata for now, as it's the least invasive change to the interface.
-			// We'll use the key "_raw_startup_message".
-
-			// If we didn't modify the user, we reconstruct the raw message from header + payload
-			fullMsg := make([]byte, len(header)+len(payload))
-			copy(fullMsg, header)
-			copy(fullMsg[4:], payload)
-			params["_raw_startup_message"] = string(fullMsg)
+			// Use original message
+			rawStartupMsg = make([]byte, len(header)+len(payload))
+			copy(rawStartupMsg, header)
+			copy(rawStartupMsg[4:], payload)
 		}
 	}
 
-	return core.RoutingMetadata(params), conn, nil
+	return core.RoutingMetadata(params), conn, rawStartupMsg, nil
 }
 
 func rebuildStartupMessage(protocolVersion uint32, params map[string]string) []byte {

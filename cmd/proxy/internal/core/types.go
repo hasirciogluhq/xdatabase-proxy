@@ -16,8 +16,16 @@ type BackendResolver interface {
 	Resolve(ctx context.Context, metadata RoutingMetadata) (string, error)
 }
 
+// ConnectionHandler defines the interface for handling a client connection.
+// It takes full ownership of the connection lifecycle, including handshake,
+// resolution, error reporting, and data proxying.
+type ConnectionHandler interface {
+	HandleConnection(conn net.Conn)
+}
+
 // ProtocolHandler defines how to interpret the initial connection handshake.
 // It abstracts away the specific database wire protocol (Postgres, MySQL, etc).
+// Deprecated: Use ConnectionHandler for full lifecycle management.
 type ProtocolHandler interface {
 	// Handshake reads the initial bytes from the connection to extract metadata.
 	// It returns:

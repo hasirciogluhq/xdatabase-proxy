@@ -11,7 +11,7 @@ import (
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/discovery/kubernetes"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/discovery/memory"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/logger"
-	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/protocol/postgresql"
+	postgresql_proxy "github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/proxy/postgresql"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/storage/filesystem"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/utils"
 
@@ -134,10 +134,11 @@ func main() {
 	}
 
 	// 4. Protocol Layer (PostgreSQL)
-	protocolHandler := &postgresql.PostgresHandler{
+	postgresProxy := &postgresql_proxy.PostgresProxy{
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{*cert},
 		},
+		Resolver: resolver,
 	}
 
 	// 5. Core Layer (Proxy)
@@ -153,9 +154,8 @@ func main() {
 	logger.Info("Listening on", "port", startPort)
 
 	server := &core.Server{
-		Listener:        listener,
-		Resolver:        resolver,
-		ProtocolHandler: protocolHandler,
+		Listener:          listener,
+		ConnectionHandler: postgresProxy,
 	}
 
 	// Mark as ready

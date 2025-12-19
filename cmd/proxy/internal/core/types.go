@@ -1,9 +1,9 @@
 package core
 
 import (
-"context"
-"crypto/tls"
-"net"
+	"context"
+	"crypto/tls"
+	"net"
 )
 
 // RoutingMetadata contains information extracted from the protocol handshake
@@ -31,4 +31,5 @@ type ProtocolHandler interface {
 // It abstracts away the storage mechanism (K8s Secret, File, Vault, etc.).
 type TLSProvider interface {
 	GetCertificate(ctx context.Context) (*tls.Certificate, error)
+	Store(ctx context.Context, certPEM, keyPEM []byte) error
 }

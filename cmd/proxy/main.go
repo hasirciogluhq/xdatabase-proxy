@@ -2,17 +2,10 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"log"
-	"math/big"
 	"net"
 	"os"
-	"time"
 
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/api"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/core"
@@ -20,6 +13,7 @@ import (
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/discovery/memory"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/protocol/postgresql"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/storage/filesystem"
+	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/utils"
 
 	k8s "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -115,13 +109,21 @@ func main() {
 		log.Printf("Using Kubernetes TLS provider (secret: %s/%s)", namespace, secretName)
 		tlsProvider = kubernetes.NewK8sTLSProvider(clientset, namespace, secretName)
 	} else {
-		// Priority 3: Self-Signed (Development/Default)
-		log.Println("Using Self-Signed Memory TLS provider (Development Mode)")
-		cert, err := generateSelfSignedCert()
+		log.Println("Using Memory TLS provider (Default)")
+		tlsProvider = memory.NewMemoryTLSProvider()
+	}
+
+	// Check if we should generate and store a self-signed certificate
+	if os.Getenv("TLS_ENABLE_SELF_SIGNED") == "true" {
+		log.Println("TLS_ENABLE_SELF_SIGNED is true. Generating and storing self-signed certificate...")
+		certPEM, keyPEM, err := utils.GenerateSelfSignedCert()
 		if err != nil {
 			log.Fatalf("Failed to generate self-signed cert: %v", err)
 		}
-		tlsProvider = &memoryTLSProvider{cert: &cert}
+
+		if err := tlsProvider.Store(context.Background(), certPEM, keyPEM); err != nil {
+			log.Fatalf("Failed to store self-signed cert: %v", err)
+		}
 	}
 
 	// Load initial certificate
@@ -161,43 +163,4 @@ func main() {
 	if err := server.Serve(); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
-}
-
-// memoryTLSProvider is a simple in-memory implementation for development
-type memoryTLSProvider struct {
-	cert *tls.Certificate
-}
-
-func (p *memoryTLSProvider) GetCertificate(ctx context.Context) (*tls.Certificate, error) {
-	return p.cert, nil
-}
-
-func generateSelfSignedCert() (tls.Certificate, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			Organization: []string{"xdatabase-proxy"},
-		},
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(time.Hour * 24 * 365),
-
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-
-	return tls.X509KeyPair(certPEM, keyPEM)
 }

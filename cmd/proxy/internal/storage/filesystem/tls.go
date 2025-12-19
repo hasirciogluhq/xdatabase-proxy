@@ -1,9 +1,10 @@
 package filesystem
 
 import (
-"context"
-"crypto/tls"
-"fmt"
+	"context"
+	"crypto/tls"
+	"fmt"
+	"os"
 )
 
 type FileTLSProvider struct {
@@ -24,4 +25,14 @@ func (p *FileTLSProvider) GetCertificate(ctx context.Context) (*tls.Certificate,
 		return nil, fmt.Errorf("failed to load key pair from %s, %s: %w", p.CertFile, p.KeyFile, err)
 	}
 	return &cert, nil
+}
+
+func (p *FileTLSProvider) Store(ctx context.Context, certPEM, keyPEM []byte) error {
+	if err := os.WriteFile(p.CertFile, certPEM, 0644); err != nil {
+		return fmt.Errorf("failed to write cert file: %w", err)
+	}
+	if err := os.WriteFile(p.KeyFile, keyPEM, 0600); err != nil {
+		return fmt.Errorf("failed to write key file: %w", err)
+	}
+	return nil
 }

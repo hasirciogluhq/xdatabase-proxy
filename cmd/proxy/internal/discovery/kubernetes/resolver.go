@@ -1,15 +1,15 @@
 package kubernetes
 
 import (
-"context"
-"fmt"
-"time"
+	"context"
+	"fmt"
+	"time"
 
-"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/core"
-corev1 "k8s.io/api/core/v1"
-"k8s.io/client-go/informers"
-"k8s.io/client-go/kubernetes"
-"k8s.io/client-go/tools/cache"
+	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/core"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 )
 
 type K8sResolver struct {

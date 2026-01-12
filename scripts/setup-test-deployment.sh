@@ -11,7 +11,7 @@ else
 fi
 
 echo "Building xdatabase-proxy..."
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o ./build/xdatabase-proxy apps/proxy/main.go
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o ./build/xdatabase-proxy cmd/proxy/main.go
 
 echo "Building Docker image..."
 eval $(minikube docker-env -p local-test)

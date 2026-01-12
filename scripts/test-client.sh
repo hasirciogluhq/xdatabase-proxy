@@ -1,0 +1,1 @@
+psql "postgresql://postgres.dblocal:1234@localhost:7878/postgres?sslmode=require"

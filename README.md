@@ -3,35 +3,43 @@
 ![XDatabase Proxy in Action](static/images/works-perfect.png)
 
 > **XDatabase Proxy in Action:**
-> The screenshot below demonstrates a successful, secure PostgreSQL connection established through the xdatabase-proxy. The proxy automatically generates and manages TLS certificates, ensuring encrypted traffic between your client and the database. This seamless integration with Kubernetes and real-time certificate handling provides both security and ease of use for your cloud-native database workloads.
+> The screenshot demonstrates a successful, secure PostgreSQL connection established through xdatabase-proxy. The proxy automatically generates and manages TLS certificates, ensuring encrypted traffic between your client and the database. This seamless integration with Kubernetes and real-time certificate handling provides both security and ease of use for your cloud-native database workloads.
 
-XDatabase Proxy is a smart proxy solution for your database deployments running in Kubernetes environments. This proxy is designed to manage and route connections between different database deployments.
+XDatabase Proxy is a production-grade, enterprise-ready proxy solution for database deployments. Designed with flexibility in mind, it runs seamlessly in Kubernetes clusters, containers, VMs, or bare-metal environments.
 
 ## Features
 
-- 🔄 Dynamic service discovery and routing
-- 🎯 Deployment-based routing
-- 🌊 Connection pooling support (works with any pooler, not just pgbouncer)
-- 🚀 Kubernetes integration
-- 📊 Smart load balancing
-- 🔍 Real-time service monitoring
-- 🔀 Multi-node cluster support (works with any cluster manager, not just pgpool-II)
-- 🔒 TLS/SSL support with auto-generated certificates
-- 🏷️ Label-based configuration (no hard dependencies on specific implementations)
+- 🔄 **Dynamic Service Discovery**: Automatic backend discovery via Kubernetes API or static configuration
+- 🎯 **Deployment-Based Routing**: Route connections based on deployment IDs
+- 🌊 **Connection Pooling Support**: Works with any pooler (pgbouncer, odyssey, etc.)
+- 🚀 **Multi-Runtime Support**: Kubernetes, Container, VM, or Bare-Metal deployments
+- 📊 **Smart Load Balancing**: Intelligent routing between backends
+- 🔍 **Real-Time Monitoring**: Live service discovery and health checks
+- 🔀 **Multi-Node Cluster Support**: Works with any cluster manager (pgpool-II, patroni, etc.)
+- 🔒 **Enterprise TLS/SSL**:
+  - Automatic certificate generation and renewal
+  - Certificate expiration monitoring
+  - Multiple certificate sources (file, Kubernetes secret, memory)
+  - Self-signed certificate support for development
+- 🏷️ **Label-Based Configuration**: No hard dependencies on specific implementations
+- 🔌 **Flexible Discovery**: Kubernetes API or static backend configuration
+- 🩺 **Health Check Endpoints**: Built-in health and readiness checks
+- 🪵 **Structured Logging**: JSON-formatted logs with debug mode
+- 🏗️ **Production-Grade Architecture**: Factory pattern, dependency injection, configuration-driven
 
 ## Supported Databases
 
-Currently, the following databases are supported:
-
-- PostgreSQL (Full Support)
-- MySQL (Planned)
-- MongoDB (Planned)
+| Database   | Status          |
+| ---------- | --------------- |
+| PostgreSQL | ✅ Full Support |
+| MySQL      | 📋 Planned      |
+| MongoDB    | 📋 Planned      |
 
 ## Requirements
 
 - Go 1.23.4 or higher
-- Kubernetes cluster or local test environment
-- kubectl configuration
+- Kubernetes cluster (optional - for Kubernetes discovery mode)
+- kubectl configuration (optional - for remote Kubernetes access)
 
 ## Installation
 
@@ -44,122 +52,225 @@ cd xdatabase-proxy
 go mod download
 
 # Build the project
-go build -o xdatabase-proxy apps/proxy/main.go
+go build -o xdatabase-proxy cmd/proxy/main.go
 ```
 
 ## Configuration
 
 ### Environment Variables
 
-| Variable                    | Description                                                                   | Required | Default    | Example Value   |
-| --------------------------- | ----------------------------------------------------------------------------- | -------- | ---------- | --------------- |
-| KUBE_CONTEXT                | Kubernetes context name (only used in development/test mode, ignored in prod) | No       | local-test | local-test      |
-| POSTGRESQL_PROXY_ENABLED    | Enable PostgreSQL proxy. Must be set to 'true' to activate the proxy.         | Yes      | -          | true            |
-| POSTGRESQL_PROXY_START_PORT | Starting port for PostgreSQL proxy. Must be set.                              | Yes      | 5432       | 5432            |
-| NAMESPACE                   | Namespace where the proxy runs and self-signed certs are stored.              | Yes      | -          | xdatabase-proxy |
+#### Core Configuration
 
-### Kubernetes Labels
+| Variable        | Description                                    | Required | Default    | Example Value |
+| --------------- | ---------------------------------------------- | -------- | ---------- | ------------- |
+| DATABASE_TYPE   | Database type to proxy                         | No       | postgresql | postgresql    |
+| PROXY_START_PORT| Port for proxy listener                        | No       | 5432       | 5432          |
+| HEALTH_SERVER_PORT | Health check server port                    | No       | 8080       | 8080          |
+| DEBUG           | Enable debug logging                           | No       | false      | true          |
 
-The following labels are required for the proxy to identify database services:
+#### Runtime Configuration
 
-| Label                            | Description                                        | Example Value   |
-| -------------------------------- | -------------------------------------------------- | --------------- |
-| xdatabase-proxy-enabled          | Whether the service should be managed by the proxy | true            |
-| xdatabase-proxy-deployment-id    | Database deployment ID                             | db-deployment-1 |
-| xdatabase-proxy-database-type    | Database type                                      | postgresql      |
-| xdatabase-proxy-pooled           | Whether this is a connection pooling service       | true/false      |
-| xdatabase-proxy-destination-port | Target port for the database connection            | 5432            |
+| Variable  | Description                                                                                      | Required | Default      | Example Value | When to Use |
+| --------- | ------------------------------------------------------------------------------------------------ | -------- | ------------ | ------------- | ----------- |
+| RUNTIME   | Execution environment: `kubernetes`, `container`, `vm`                                           | No       | Auto-detect  | kubernetes    | Set explicitly only if auto-detection fails |
+| NAMESPACE | Kubernetes namespace                                                                             | Conditional | default   | production    | **Required** when `RUNTIME=kubernetes` OR `TLS_MODE=kubernetes` |
 
-> **Important**: This proxy is designed to be tool-agnostic. You don't need to use any specific pooling or cluster management solution. Simply add the appropriate labels to any service, and the proxy will route connections accordingly based on those labels.
+**Runtime Auto-Detection:**
+- `kubernetes`: Detected if `/var/run/secrets/kubernetes.io/serviceaccount` exists
+- `container`: Detected if `/.dockerenv` exists
+- `vm`: Default fallback
 
-## Connection Scenarios
+**Configuration Rules:**
+- ✅ If `RUNTIME=kubernetes`: `NAMESPACE` is **mandatory** for service discovery
+- ✅ If `RUNTIME=container|vm` + `TLS_MODE=kubernetes`: `NAMESPACE` is **mandatory** for TLS secret access
+- ✅ If `RUNTIME=container|vm` + `TLS_MODE=file|memory`: `NAMESPACE` is optional
 
-The proxy supports three connection scenarios:
+#### Backend Discovery
 
-1. **Direct Connection**
+| Variable         | Description                                                                            | Required | Default      | Example Value                           | When to Use |
+| ---------------- | -------------------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------- | ----------- |
+| DISCOVERY_MODE   | Discovery strategy: `kubernetes` or `static`                                           | No       | kubernetes   | static                                  | Auto-set to `static` if `STATIC_BACKENDS` is provided |
+| STATIC_BACKENDS  | Static backend mapping (`deployment_id[.pool]=host:port` comma-separated)              | Conditional | -         | db1=10.0.1.5:5432,db1.pool=10.0.1.5:6432 | **Required** when not using Kubernetes discovery |
+| KUBECONFIG       | Path to kubeconfig file                                                                | Conditional | ~/.kube/config | /path/to/config                    | **Required** when `DISCOVERY_MODE=kubernetes` AND running outside cluster (VM/Container) |
+| KUBE_CONTEXT     | Kubernetes context name                                                                | No       | -            | production-cluster                      | Use for multi-cluster setups with kubeconfig |
 
-   - Client → PostgreSQL
-   - Simple, direct connection to a single PostgreSQL instance
-   - Use when connection pooling is not needed
+**Discovery Modes:**
+- **kubernetes**: Dynamic discovery via Kubernetes API
+  - Works from inside Kubernetes (in-cluster) 
+  - Works from outside Kubernetes (with KUBECONFIG)
+  - Can run in VM/Container and connect to remote Kubernetes
+- **static**: Static backend list (no Kubernetes dependency)
 
-2. **Connection Pooling**
+**Configuration Rules:**
+- ✅ **In Kubernetes Pod**: `DISCOVERY_MODE=kubernetes` (default, uses in-cluster config)
+- ✅ **VM/Container → Remote K8s**: `DISCOVERY_MODE=kubernetes` + `KUBECONFIG=/path/to/config`
+- ✅ **Static Backends**: `STATIC_BACKENDS='db1=host:5432,db1.pool=host:6432'` (auto-sets `DISCOVERY_MODE=static`)
+- ⚠️ **Cannot mix**: Cannot use both `STATIC_BACKENDS` and `DISCOVERY_MODE=kubernetes` at same time
+- ⚠️ **KUBECONFIG required**: If `DISCOVERY_MODE=kubernetes` + not in cluster → must provide `KUBECONFIG`
+- ⚠️ **NAMESPACE required**: If `DISCOVERY_MODE=kubernetes` → must provide `NAMESPACE`
 
-   - Client → Connection Pooler → PostgreSQL
-   - Efficient connection management
-   - Recommended for applications with many connections
-   - Works with any connection pooler (pgbouncer, odyssey, etc.)
+**Static Backends Format:**
+- `deployment_id=host:port` → direct connections
+- `deployment_id.pool=host:port` → pooled connections (optional)
+- Multiple entries comma-separated, e.g. `db1=10.0.1.5:5432,db1.pool=10.0.1.5:6432`
 
-3. **Multi-Node Cluster**
-   - Client → Connection Pooler → Cluster Manager → [Master + Follower Nodes]
-   - High availability and load balancing
-   - Required for multi-node PostgreSQL clusters
-   - Works with any cluster manager (pgpool-II, patroni, etc.)
+#### TLS/SSL Configuration
 
-## Usage
+| Variable                     | Description                                                                    | Required | Default | Example Value       | When to Use |
+| ---------------------------- | ------------------------------------------------------------------------------ | -------- | ------- | ------------------- | ----------- |
+| TLS_ENABLED                  | Enable/disable TLS completely                                                  | No       | true    | false               | Set to `false` for development or internal non-encrypted networks |
+| TLS_MODE                     | TLS provider: `file`, `kubernetes`, `memory`                                   | No       | Auto    | kubernetes          | Auto-detected based on other TLS settings |
+| TLS_CERT_FILE                | Path to TLS certificate file                                                   | Conditional | -    | /certs/tls.crt      | **Required** when `TLS_MODE=file` AND `TLS_AUTO_GENERATE=false` |
+| TLS_KEY_FILE                 | Path to TLS private key file                                                   | Conditional | -    | /certs/tls.key      | **Required** when `TLS_MODE=file` AND `TLS_AUTO_GENERATE=false` |
+| TLS_SECRET_NAME              | Kubernetes secret name for TLS certificate                                     | Conditional | -    | xdatabase-proxy-tls | **Required** when `TLS_MODE=kubernetes` |
+| TLS_AUTO_GENERATE            | Generate self-signed certificate if none exists                                | No       | true    | true                | Recommended `true` for development, `false` for production with real certs |
+| TLS_AUTO_RENEW               | Automatically renew certificate if expired or invalid                          | No       | true    | false               | Set `false` if using externally managed certificates |
+| TLS_RENEWAL_THRESHOLD_DAYS   | Days before expiry to trigger renewal                                          | No       | 30      | 60                  | Adjust based on cert renewal process |
 
-### Service Definition Examples
+**TLS Mode Auto-Detection:**
+1. `file`: When `TLS_CERT_FILE` is set
+2. `kubernetes`: When `TLS_SECRET_NAME` is set
+3. `memory`: Default fallback (in-memory certificate)
 
-#### 1. Direct PostgreSQL Service
+**TLS Certificate Lifecycle:**
+- If certificate doesn't exist and `TLS_AUTO_GENERATE=true`: Generate new self-signed certificate
+- If certificate is invalid/expired and `TLS_AUTO_RENEW=true`: Regenerate certificate
+- Kubernetes secret automatically created if it doesn't exist
+- Multi-instance safe: Race condition handling for concurrent pod startups
 
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres-db
-  labels:
-    xdatabase-proxy-enabled: "true"
-    xdatabase-proxy-deployment-id: "db-deployment-1"
-    xdatabase-proxy-database-type: "postgresql"
-    xdatabase-proxy-pooled: "false" # Direct PostgreSQL connection
-    xdatabase-proxy-destination-port: "5432" # Target PostgreSQL port
-spec:
-  ports:
-    - port: 5432
-      name: postgresql
+**Configuration Rules:**
+- ✅ **No TLS**: `TLS_ENABLED=false` → All other TLS settings ignored
+- ✅ **Auto TLS in K8s**: `TLS_MODE=kubernetes` + `TLS_SECRET_NAME=my-tls` + `TLS_AUTO_GENERATE=true` → Auto-creates secret
+- ✅ **Existing K8s Secret**: `TLS_MODE=kubernetes` + `TLS_SECRET_NAME=existing-tls` + `TLS_AUTO_GENERATE=false`
+- ✅ **File-based TLS**: `TLS_MODE=file` + `TLS_CERT_FILE=/path/cert` + `TLS_KEY_FILE=/path/key`
+- ✅ **Auto-generated File TLS**: `TLS_MODE=file` + `TLS_AUTO_GENERATE=true` → Creates certs in `./development_data/`
+- ✅ **Memory TLS**: `TLS_MODE=memory` + `TLS_AUTO_GENERATE=true` → In-memory self-signed cert
+- ⚠️ **TLS_MODE=file + No files**: Must have `TLS_AUTO_GENERATE=true` OR provide `TLS_CERT_FILE` + `TLS_KEY_FILE`
+- ⚠️ **TLS_MODE=kubernetes**: Requires `NAMESPACE` + `TLS_SECRET_NAME`
+- ⚠️ **Kubernetes Secret Access**: Requires proper RBAC permissions for secret read/write
+
+**Common TLS Scenarios:**
+| Scenario | TLS_ENABLED | TLS_MODE | TLS_AUTO_GENERATE | TLS_SECRET_NAME | Notes |
+|----------|-------------|----------|-------------------|-----------------|-------|
+| **Production K8s with auto TLS** | `true` | `kubernetes` | `true` | `xdatabase-proxy-tls` | Recommended for production in K8s |
+| **Production K8s with existing cert** | `true` | `kubernetes` | `false` | `my-existing-tls` | Use pre-created TLS secret |
+| **Development (no TLS)** | `false` | - | - | - | Fast local testing |
+| **Development (with TLS)** | `true` | `file` | `true` | - | Auto-creates local cert files |
+| **VM/Container with file certs** | `true` | `file` | `false` | - | Requires `TLS_CERT_FILE` + `TLS_KEY_FILE` |
+
+#### Legacy Support (Backward Compatibility)
+
+| Legacy Variable              | Maps To                                      |
+| ---------------------------- | -------------------------------------------- |
+| POSTGRESQL_PROXY_ENABLED     | Sets DATABASE_TYPE=postgresql                |
+| POSTGRESQL_PROXY_START_PORT  | PROXY_START_PORT                             |
+| TLS_ENABLE_SELF_SIGNED       | TLS_AUTO_GENERATE                            |
+| POD_NAMESPACE                | NAMESPACE                                    |
+
+### Kubernetes Service Discovery
+
+Labels act as a **composite index** for service discovery. Proxy uses `(xdatabase-proxy-deployment-id, xdatabase-proxy-database-type, xdatabase-proxy-pooled)` as the lookup key.
+
+**Label Matching Strategy:**
+- Proxy searches for services matching the composite index
+- If multiple services match the same criteria, **the first one is used** (like `findFirst()` in databases)
+- Extra labels are ignored (safe to add additional labels)
+- Missing optional labels are handled gracefully
+
+| Label                             | Type    | Description                                        | Example Value   | Index |
+| --------------------------------- | ------- | -------------------------------------------------- | --------------- | ----- |
+| **xdatabase-proxy-deployment-id** | String  | Database deployment ID (routing key)               | db-deployment-1 | ✅ YES |
+| **xdatabase-proxy-database-type** | String  | Database type (filter)                             | postgresql      | ✅ YES |
+| **xdatabase-proxy-pooled**        | Boolean | Pooled connections (true/false)                    | true            | ✅ YES |
+| xdatabase-proxy-destination-port  | Integer | Target port for the database connection            | 5432            | —     |
+| xdatabase-proxy-enabled           | Boolean | (Deprecated) Whether service is managed by proxy   | true            | —     |
+
+**Label Indexing Example:**
+
+When proxy receives connection: `postgres://user.db-prod.pool@proxy:5432/db`
+- Extracts: `deployment_id=db-prod`, `pooled=true`
+- Searches: services with `deployment_id=db-prod` AND `pooled=true`
+- Returns: **first matching service** (even if multiple exist)
+
+```
+Cluster Services:
+1. Service: db-prod-1     (deployment_id=db-prod, pooled=true)   → ✅ MATCHED & USED
+2. Service: db-prod-2     (deployment_id=db-prod, pooled=true)   → ⏭️ SKIPPED (duplicate)
+3. Service: db-prod-pool  (deployment_id=db-prod, pooled=false)  → ⏭️ SKIPPED (diff pooled)
+4. Service: db-staging    (deployment_id=db-staging, pooled=true)→ ⏭️ SKIPPED (diff id)
 ```
 
-#### 2. Connection Pooling Service (Example with PgBouncer)
+**Connection String Routing:**
+- `postgres://user.db-prod@proxy:5432/db` → uses `deployment_id=db-prod, pooled=false`
+- `postgres://user.db-prod.pool@proxy:5432/db` → uses `deployment_id=db-prod, pooled=true`
 
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: pgbouncer-pool
-  labels:
-    xdatabase-proxy-enabled: "true"
-    xdatabase-proxy-deployment-id: "db-deployment-1"
-    xdatabase-proxy-database-type: "postgresql"
-    xdatabase-proxy-pooled: "true" # This indicates it's a connection pooling service
-    xdatabase-proxy-destination-port: "6432" # Target pooler port
-spec:
-  ports:
-    - port: 6432
-      name: postgresql
+## Usage Examples
+
+### 1. Kubernetes Deployment (In-Cluster)
+
+```bash
+# Apply production configuration
+kubectl apply -f kubernetes/examples/production/deploy.yaml
 ```
 
-#### 3. Multi-Node Cluster Setup (Example with Pgpool-II)
+The proxy auto-detects Kubernetes runtime and uses in-cluster config.
 
-```yaml
-# Connection Pooler Service (Required for multi-node)
-apiVersion: v1
-kind: Service
-metadata:
-  name: connection-pool
-  labels:
-    xdatabase-proxy-enabled: "true"
-    xdatabase-proxy-deployment-id: "db-deployment-1"
-    xdatabase-proxy-database-type: "postgresql"
-    xdatabase-proxy-pooled: "true" # Required for multi-node setup
-    xdatabase-proxy-destination-port: "6432" # Target cluster manager port (Same as the connection pooler port)
-spec:
-  ports:
-    - port: 6432
-      name: postgresql
+### 2. Container with Remote Kubernetes Discovery
+
+```bash
+docker run -d \
+  -e DATABASE_TYPE=postgresql \
+  -e DISCOVERY_MODE=kubernetes \
+  -e KUBECONFIG=/kubeconfig/config \
+  -e KUBE_CONTEXT=production-cluster \
+  -e TLS_AUTO_GENERATE=true \
+  -v /path/to/kubeconfig:/kubeconfig \
+  -p 5432:5432 \
+  -p 8080:8080 \
+  ghcr.io/hasirciogluhq/xdatabase-proxy:latest
 ```
 
-> **Note:** For multi-node clusters (e.g., Pgpool-II, Patroni, etc.), you only need to define the connection pooler service as shown above. There is no need for a separate cluster manager service definition; the proxy will automatically handle routing based on labels.
+### 3. VM with Static Backends
 
-### Connection String Format
+```bash
+export DATABASE_TYPE=postgresql
+export RUNTIME=vm
+export DISCOVERY_MODE=static
+export STATIC_BACKENDS='db1=10.0.1.5:5432,db1.pool=10.0.1.5:6432,db2=10.0.1.6:5432'
+export TLS_AUTO_GENERATE=true
+export TLS_AUTO_RENEW=true
+
+./xdatabase-proxy
+```
+
+### 4. Local Development
+
+```bash
+export DATABASE_TYPE=postgresql
+export DEBUG=true
+export RUNTIME=vm
+export DISCOVERY_MODE=kubernetes
+export KUBECONFIG=~/.kube/config
+export KUBE_CONTEXT=minikube
+export TLS_AUTO_GENERATE=true
+
+./xdatabase-proxy
+```
+
+### 5. Production Kubernetes with External TLS
+
+```bash
+export DATABASE_TYPE=postgresql
+export RUNTIME=kubernetes
+export NAMESPACE=production
+export TLS_MODE=kubernetes
+export TLS_SECRET_NAME=xdatabase-proxy-tls
+export TLS_AUTO_GENERATE=true
+export TLS_AUTO_RENEW=true
+export TLS_RENEWAL_THRESHOLD_DAYS=30
+```
+
+## Connection String Format
 
 ```
 postgresql://username.deployment_id[.pool]@proxy-host:port/dbname
@@ -168,69 +279,92 @@ postgresql://username.deployment_id[.pool]@proxy-host:port/dbname
 Examples:
 
 ```
-# 1. Direct PostgreSQL Connection
-postgresql://myuser.db-deployment-1@localhost:3001/mydb
+# Direct PostgreSQL Connection
+postgresql://myuser.db-deployment-1@localhost:5432/mydb
 
-# 2. Connection through Connection Pooler
-postgresql://myuser.db-deployment-1.pool@localhost:3001/mydb
+# Connection through Pooler
+postgresql://myuser.db-deployment-1.pool@localhost:5432/mydb
 
-# 3. Multi-node Cluster Connection (automatically uses the right services)
-postgresql://myuser.db-deployment-1.pool@localhost:3001/mydb
+# Multi-node Cluster
+postgresql://myuser.db-deployment-1.pool@localhost:5432/mydb
 ```
 
-## Features and Limitations
+## Architecture
 
-- Separate database services for each deployment
-- Automatic load balancing and routing based on labels
-- Works with any connection pooling solution
-- Works with any cluster management solution
-- Label-based service discovery (no hardcoded dependencies)
-- Real-time service discovery via Kubernetes API
-- TLS/SSL support with auto-generated certificates
-- Currently only PostgreSQL is fully supported (MySQL and MongoDB planned)
+```
+┌───────────────────────────────────────────────────────────────┐
+│                       xdatabase-proxy                         │
+│                                                               │
+│  ┌──────────────────┐    ┌──────────────────────┐             │
+│  │ Config & Runtime  │    │ Orchestrator (app.go)│             │
+│  │  env -> types    │ →  │ wires factories      │             │
+│  └──────────────────┘    └──────────────────────┘             │
+│            |                          |                       │
+│            v                          v                       │
+│  ┌──────────────────┐    ┌──────────────────────┐             │
+│  │ ResolverFactory  │    │ TLSFactory           │             │
+│  │ (k8s | static)   │    │ (k8s | file | memory) │             │
+│  └──────────────────┘    └──────────────────────┘             │
+│            \                          /                       │
+│             v                        v                        │
+│              ┌────────────────────────────────┐               │
+│              │ ProxyFactory (PostgreSQL)      │               │
+│              │ builds ConnectionHandler       │               │
+│              └────────────────────────────────┘               │
+│                               |                               │
+│                 ┌────────────────────────┐                    │
+│                 │ Core Server            │                    │
+│                 │ (TCP accept loop)      │                    │
+│                 └────────────────────────┘                    │
+│                               |                               │
+│                 ┌────────────────────────┐                    │
+│                 │ Health Server          │                    │
+│                 │ /health, /ready        │                    │
+│                 └────────────────────────┘                    │
+└───────────────────────────────────────────────────────────────┘
+```
+
+**Flow**
+- Env → `config`: validates runtime, discovery, TLS, ports.
+- `app.Application`: initializes logger, resolver, TLS provider (optional), proxy handler, listener.
+- Factories: runtime-aware resolver (k8s/static), pluggable TLS (k8s/file/memory), protocol proxy.
+- `core.Server`: TCP accept loop, delegates to connection handler.
+- `api.HealthServer`: `/health` liveness, `/ready` readiness.
+
+## Health Check Endpoints
+
+- `GET /health` - Basic health check
+- `GET /ready` - Readiness check (returns 200 when proxy is ready)
+
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/ready
+```
 
 ## Security
 
-- Isolation between deployments
-- Connection parameter validation
-- Secure TLS/SSL connection support
+- **TLS/SSL Encryption**: All connections encrypted
+- **Certificate Auto-Renewal**: Prevents expired certificates
+- **Deployment Isolation**: Separate routing per deployment
+- **Connection Validation**: Parameter validation and sanitization
+- **Multi-Instance Safe**: Race condition handling
 
 ## Contributing
 
-1. Fork it
+1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Create a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Contact
 
-If you have any questions or suggestions, please reach out through GitHub Issues.
-
-## Production Deployment
-
-To deploy xdatabase-proxy in your production Kubernetes cluster, simply run:
-
-```bash
-kubectl apply -f kubernetes/examples/production/deploy.yaml
-```
-
-Or, you can use the raw GitHub URL directly:
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/hasirciogluhq/xdatabase-proxy/main/kubernetes/examples/production/deploy.yaml
-```
-
-## How it works ?
-<img width="1303" height="3840" alt="Untitled diagram _ Mermaid Chart-2025-07-27-142550" src="https://github.com/user-attachments/assets/e27af19d-4784-4c9b-8e5d-4d036d07a6d2" />
-
+GitHub Issues: https://github.com/hasirciogluhq/xdatabase-proxy/issues
 
 ---
 
-_(Note: A Turkish version of this README is planned and will be added soon.)_
-
----
+**Note:** This is production-grade software designed for enterprise use cases. For questions, feature requests, or bug reports, please use GitHub Issues.

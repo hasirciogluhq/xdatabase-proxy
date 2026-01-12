@@ -72,21 +72,41 @@ spec:
           effect: NoSchedule
       containers:
         - name: xdatabase-proxy
-          image: ghcr.io/hasirciogluhq/xdatabase-proxy:latest
+          image: ghcr.io/hasirciogluhq/xdatabase-proxy-development:development
           imagePullPolicy: Always
           ports:
             - containerPort: 5432
               hostPort: 5432
               name: proxy-port
           env:
-            - name: MODE
-              value: production
-            - name: POSTGRESQL_PROXY_ENABLED
-              value: "true"
+            - name: DATABASE_TYPE
+              value: "postgresql"
+            - name: RUNTIME
+              value: "kubernetes"
             - name: NAMESPACE
-              value: xdatabase-proxy
-            - name: POSTGRESQL_PROXY_START_PORT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: DISCOVERY_MODE
+              value: "kubernetes"
+            - name: PROXY_START_PORT
               value: "5432"
+            - name: HEALTH_SERVER_PORT
+              value: "8080"
+            - name: TLS_ENABLED
+              value: "true"
+            - name: TLS_MODE
+              value: "kubernetes"
+            - name: TLS_SECRET_NAME
+              value: "xdatabase-proxy-tls"
+            - name: TLS_AUTO_GENERATE
+              value: "true"
+            - name: TLS_AUTO_RENEW
+              value: "true"
+            - name: TLS_RENEWAL_THRESHOLD_DAYS
+              value: "30"
+            - name: DEBUG
+              value: "true"
           resources:
             requests:
               cpu: 100m
@@ -96,8 +116,8 @@ spec:
               memory: 1Gi
           livenessProbe:
             httpGet:
-              path: /healthz
-              port: 80
+              path: /health
+              port: 8080
               scheme: HTTP
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -107,7 +127,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /ready
-              port: 80
+              port: 8080
               scheme: HTTP
             initialDelaySeconds: 5
             periodSeconds: 10

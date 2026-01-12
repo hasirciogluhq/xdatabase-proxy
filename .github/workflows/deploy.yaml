@@ -9,13 +9,49 @@ on:
       - "v*"
   release:
     types: [created]
+  pull_request:
+    branches:
+      - main
+      - development
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: ["1.23.4"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Build binary for ${{ matrix.os }}
+        run: CGO_ENABLED=0 go build -o xdatabase-proxy cmd/proxy/main.go
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -30,9 +66,6 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: "1.23.4"
-
-      - name: Run tests
-        run: go test -v ./...
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -64,9 +97,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64,linux/386
 
   build-and-push-development:
+    needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/development'
     permissions:
@@ -81,9 +115,6 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: "1.23.4"
-
-      - name: Run tests
-        run: go test -v ./...
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -115,7 +146,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64,linux/386
 
   create-release:
     needs: build-and-push

@@ -75,8 +75,8 @@ spec:
           image: ghcr.io/hasirciogluhq/xdatabase-proxy:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 5432
-              hostPort: 5432
+            - containerPort: 4545
+              hostPort: 4545
               name: proxy-port
           env:
             - name: MODE
@@ -86,7 +86,7 @@ spec:
             - name: NAMESPACE
               value: xdatabase-proxy
             - name: POSTGRESQL_PROXY_START_PORT
-              value: "5432"
+              value: "4545"
           resources:
             requests:
               cpu: 100m
@@ -97,7 +97,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 80
+              port: 8080
               scheme: HTTP
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -107,7 +107,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /ready
-              port: 80
+              port: 8080
               scheme: HTTP
             initialDelaySeconds: 5
             periodSeconds: 10

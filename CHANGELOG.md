@@ -19,6 +19,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [2.0.0] - 2026-01-12
+
+### Added
+- New proxy manager component for advanced proxy infrastructure management
+- Comprehensive structured logger with improved console output formatting
+- Self-signed certificate generation capability for TLS
+- Database type support in resolver configurations (Kubernetes and Memory resolvers)
+- Test client script (`scripts/test-client.sh`) for connection testing
+- Certificate utility functions for certificate management (`cmd/proxy/internal/utils/cert.go`)
+- Memory-based TLS provider implementation
+- API server component for proxy management
+- Core server architecture with improved request handling
+- Protocol handler for PostgreSQL connections
+- Filesystem-based TLS storage provider
+
+### Changed
+- Merged main branch into development branch for latest stable features
+- Updated Docker CMD path to reflect new folder structure (`cmd/proxy`)
+- Refactored connection handler to improve error handling and lifecycle management for production environments
+- Moved PostgreSQL handler from protocol package to proxy package
+- Reorganized project structure: moved from `apps/proxy` to `cmd/proxy` and `pkg/*` to `cmd/proxy/internal/*`
+- Updated TLS provider implementation with enhanced self-signed certificate support
+- Improved discovery system for both Kubernetes and memory-based resolvers
+- Enhanced PostgreSQL protocol parser implementation
+- Restructured folder hierarchy for better organization
+- Updated GitHub usernames and repository references across all configuration files
+- Modified platform support in deployment workflow (amd64, arm64, 386)
+
+### Deprecated
+
+### Removed
+- Deleted old HTTP health check implementation (`cmd/proxy/internal/http/health.go`)
+- Removed legacy Kubernetes client implementation
+- Cleaned up old proxy server implementations and tests
+- Removed temporary binary and certificate files from repository root
+
+### Fixed
+- Connection lifecycle issues in production environments
+- Error response handling in connection handler
+- Binary file cleanup (removed `proxy` binary from tracking)
+- Certificate file management in repository
+
+### Security
+- Enhanced TLS configuration with improved certificate management
+- Added self-signed certificate generation for development environments
+- Improved certificate storage security with filesystem provider
+
 ## [1.0.8] - 2025-07-07
 
 ### Fixed

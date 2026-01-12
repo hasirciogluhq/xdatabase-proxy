@@ -213,9 +213,14 @@ func (p *PostgresProxy) handshake(conn net.Conn) (core.RoutingMetadata, net.Conn
 		value = value[:len(value)-1] // Trim null byte
 
 		params[key] = value
+		logger.Info("StartupMessage param", "key", key, "value", value, "remote_addr", conn.RemoteAddr())
 	}
 
 	// Parse username to extract deployment_id and pool status
+	// Format: username.deployment_id[.pool]
+	// Examples:
+	//   alice.db-prod.pool     → username=alice, deployment_id=db-prod, pooled=true
+	//   bob.team-1992252154561 → username=bob, deployment_id=team-1992252154561, pooled=false
 	if user, ok := params["user"]; ok {
 		logger.Info("Connection requested", "user", user, "remote_addr", conn.RemoteAddr())
 		parts := strings.Split(user, ".")
@@ -236,28 +241,43 @@ func (p *PostgresProxy) handshake(conn net.Conn) (core.RoutingMetadata, net.Conn
 		}
 	}
 
-	var rawStartupMsg []byte
+	// Default database to postgres if not provided OR if it equals the original user
+	// Some PostgreSQL clients (like psql) automatically use username as database when not specified
+	// This causes issues when username is "postgres.team-1992252154561" and gets used as database name
+	// We detect this case and default to "postgres" database instead
+	originalUser := params["user"]
+	if dbName, ok := params["database"]; !ok || dbName == "" || dbName == originalUser {
+		params["database"] = "postgres"
+		logger.Info("Database defaulted to postgres", "original_db", dbName, "remote_addr", conn.RemoteAddr())
+	}
 
-	if originalUser, ok := params["user"]; ok {
-		if newUser, ok := params["username"]; ok && newUser != originalUser {
-			// Rebuild startup message with new username
-			protocolVersion := binary.BigEndian.Uint32(payload[0:4])
-			buildParams := make(map[string]string)
-			for k, v := range params {
-				if k != "deployment_id" && k != "pooled" && k != "username" {
-					buildParams[k] = v
-				}
-			}
-			buildParams["user"] = newUser
-			rawStartupMsg = rebuildStartupMessage(protocolVersion, buildParams)
-		} else {
-			// Use original message
-			rawStartupMsg = make([]byte, len(header)+len(payload))
-			copy(rawStartupMsg, header)
-			copy(rawStartupMsg[4:], payload)
+	// Always rebuild startup message with parsed params
+	// Every PostgreSQL connection performs a fresh handshake, so we rebuild the StartupMessage
+	// to send the correct username (without deployment_id/pool suffix) and database to the backend
+	protocolVersion := binary.BigEndian.Uint32(payload[0:4])
+	buildParams := make(map[string]string)
+
+	// Copy all params except internal metadata (user will be set separately)
+	// Exclude: deployment_id, pooled, username (internal routing metadata)
+	// Include: database, client_encoding, application_name, etc.
+	for k, v := range params {
+		if k != "deployment_id" && k != "pooled" && k != "username" && k != "user" {
+			buildParams[k] = v
 		}
 	}
 
+	// Use parsed username (without deployment_id suffix) or fallback to original
+	// Backend expects: "alice" not "alice.db-prod.pool"
+	if username, ok := params["username"]; ok && username != "" {
+		buildParams["user"] = username
+		logger.Info("Using parsed username", "username", username, "database", buildParams["database"], "remote_addr", conn.RemoteAddr())
+	} else if originalUser, ok := params["user"]; ok {
+		buildParams["user"] = originalUser
+		logger.Info("Using original username", "user", originalUser, "database", buildParams["database"], "remote_addr", conn.RemoteAddr())
+	}
+
+	// Rebuild the binary StartupMessage packet with modified parameters
+	rawStartupMsg := rebuildStartupMessage(protocolVersion, buildParams)
 	return core.RoutingMetadata(params), conn, rawStartupMsg, nil
 }
 

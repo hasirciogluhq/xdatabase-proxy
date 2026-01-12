@@ -82,6 +82,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated test and development scripts to use new configuration format
 
 ### Fixed
+- **PostgreSQL Database Parameter Handling**: Complete fix for database defaulting logic
+  - Defaults to "postgres" when client omits database name
+  - Detects when client auto-fills database with username (common psql behavior)
+  - Prevents "database does not exist" errors when username contains deployment_id suffix
+  - Example: `database=postgres.team-1992252154561` now correctly becomes `database=postgres`
+- **PostgreSQL Resolver**: Uses correct database type (postgresql) instead of mysql for routing
+- **StartupMessage Rebuild**: Simplified logic - now rebuilds on every handshake for consistency
+  - Every TCP connection gets a fresh StartupMessage
+  - Eliminates unnecessary optimization that caused edge cases
+  - Ensures username parsing and database defaulting always work correctly
+- **Enhanced Logging**: Added comprehensive logging for connection parameters and username parsing
 - Multi-instance TLS certificate creation race conditions
 - Kubernetes discovery from non-Kubernetes runtimes
 - Certificate lifecycle management issues

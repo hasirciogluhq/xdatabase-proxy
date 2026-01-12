@@ -39,18 +39,20 @@ else
     echo "✅ Image should be available locally"
 fi
 
+
+
+# Delete the DaemonSet to use the new image
+echo "D}} Deleting xdatabase-proxy DaemonSet..."
+kubectl delete daemonset/xdatabase-proxy -n xdatabase-proxy
+
+sleep 1
+
 # Apply Kubernetes manifests
 echo "🚀 Deploying to Kubernetes..."
 kubectl apply -f "kubernetes/examples/local-test/postgresql.yaml"
 
-# Wait a moment for the deployment to register
-sleep 2
+sleep 3
 
-# Restart the DaemonSet to use the new image
-echo "🔄 Restarting xdatabase-proxy DaemonSet..."
-kubectl rollout restart daemonset/xdatabase-proxy -n xdatabase-proxy
-
-# Wait for rollout to complete
 echo "⏳ Waiting for rollout to complete..."
 kubectl rollout status daemonset/xdatabase-proxy -n xdatabase-proxy --timeout=120s
 

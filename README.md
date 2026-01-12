@@ -9,15 +9,22 @@ XDatabase Proxy is a smart proxy solution for your database deployments running 
 
 ## Features
 
-- 🔄 Dynamic service discovery and routing
-- 🎯 Deployment-based routing
-- 🌊 Connection pooling support (works with any pooler, not just pgbouncer)
-- 🚀 Kubernetes integration
-- 📊 Smart load balancing
-- 🔍 Real-time service monitoring
-- 🔀 Multi-node cluster support (works with any cluster manager, not just pgpool-II)
-- 🔒 TLS/SSL support with auto-generated certificates
-- 🏷️ Label-based configuration (no hard dependencies on specific implementations)
+- 🔄 **Dynamic Service Discovery**: Automatic backend discovery via Kubernetes API
+- 🎯 **Deployment-Based Routing**: Route connections based on deployment IDs
+- 🌊 **Connection Pooling Support**: Works with any pooler (pgbouncer, odyssey, etc.)
+- 🚀 **Kubernetes Native**: Seamless integration with Kubernetes environments
+- 📊 **Smart Load Balancing**: Intelligent routing between backends
+- 🔍 **Real-Time Monitoring**: Live service discovery and health checks
+- 🔀 **Multi-Node Cluster Support**: Works with any cluster manager (pgpool-II, patroni, etc.)
+- 🔒 **Advanced TLS/SSL Support**: 
+  - Auto-generated self-signed certificates
+  - File-based certificate management
+  - Kubernetes Secret integration
+  - Automatic certificate creation if not exists
+- 🏷️ **Label-Based Configuration**: No hard dependencies on specific implementations
+- 🔌 **Static Backend Support**: Run without Kubernetes for local development
+- 🩺 **Health Check Endpoint**: Built-in health and readiness checks on port 8080
+- 🪵 **Structured Logging**: JSON-formatted logs with debug mode support
 
 ## Supported Databases
 
@@ -51,12 +58,43 @@ go build -o xdatabase-proxy cmd/proxy/main.go
 
 ### Environment Variables
 
-| Variable                    | Description                                                                   | Required | Default    | Example Value   |
-| --------------------------- | ----------------------------------------------------------------------------- | -------- | ---------- | --------------- |
-| KUBE_CONTEXT                | Kubernetes context name (only used in development/test mode, ignored in prod) | No       | local-test | local-test      |
-| POSTGRESQL_PROXY_ENABLED    | Enable PostgreSQL proxy. Must be set to 'true' to activate the proxy.         | Yes      | -          | true            |
-| POSTGRESQL_PROXY_START_PORT | Starting port for PostgreSQL proxy. Must be set.                              | Yes      | 5432       | 5432            |
-| NAMESPACE                   | Namespace where the proxy runs and self-signed certs are stored.              | Yes      | -          | xdatabase-proxy |
+#### Core Configuration
+
+| Variable                    | Description                                                                 | Required | Default | Example Value   |
+| --------------------------- | --------------------------------------------------------------------------- | -------- | ------- | --------------- |
+| POSTGRESQL_PROXY_ENABLED    | Enable PostgreSQL proxy. Must be set to 'true' to activate the proxy.      | Yes      | -       | true            |
+| POSTGRESQL_PROXY_START_PORT | Starting port for PostgreSQL proxy.                                         | No       | 5432    | 5432            |
+| DEBUG                       | Enable debug logging. Set to 'true' for detailed logs.                      | No       | false   | true            |
+
+#### Kubernetes Configuration
+
+| Variable     | Description                                                                                                        | Required | Default | Example Value  |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ | -------- | ------- | -------------- |
+| KUBECONFIG   | Path to kubeconfig file. Used for local development and testing.                                                   | No       | ~/.kube/config | /path/to/config |
+| KUBE_CONTEXT | Kubernetes context name. Only used in development/test mode for multi-cluster setups.                              | No       | -       | local-test     |
+| POD_NAMESPACE| Namespace where the proxy pod is running. Automatically set by Kubernetes downward API in production.              | No       | -       | xdatabase-proxy|
+| NAMESPACE    | Generic namespace fallback. Used if POD_NAMESPACE is not set.                                                       | No       | default | xdatabase-proxy|
+
+#### Backend Configuration
+
+| Variable         | Description                                                                                      | Required | Default | Example Value                    |
+| ---------------- | ------------------------------------------------------------------------------------------------ | -------- | ------- | -------------------------------- |
+| STATIC_BACKENDS  | Static backend configuration for non-Kubernetes deployments. Format: JSON array of backends.    | No       | -       | [{"name":"db1","host":"localhost","port":5432}] |
+
+#### TLS/SSL Configuration
+
+| Variable                 | Description                                                                                         | Required | Default | Example Value          |
+| ------------------------ | --------------------------------------------------------------------------------------------------- | -------- | ------- | ---------------------- |
+| TLS_CERT_FILE            | Path to TLS certificate file. Takes priority over other TLS configurations.                         | No       | -       | /certs/tls.crt         |
+| TLS_KEY_FILE             | Path to TLS private key file. Required when TLS_CERT_FILE is set.                                   | No       | -       | /certs/tls.key         |
+| TLS_SECRET_NAME          | Kubernetes secret name containing TLS certificate. Used when TLS_CERT_FILE is not set.              | No       | -       | xdatabase-proxy-tls    |
+| TLS_ENABLE_SELF_SIGNED   | Generate and store a self-signed certificate if no certificate exists. Useful for development.      | No       | false   | true                   |
+
+> **TLS Priority Order:**
+> 1. File-based TLS (`TLS_CERT_FILE` + `TLS_KEY_FILE`)
+> 2. Kubernetes Secret (`TLS_SECRET_NAME`)
+> 3. Memory-based TLS (auto-generated self-signed certificate if `TLS_ENABLE_SELF_SIGNED=true`)
+> 4. Auto-create in Kubernetes Secret if secret doesn't exist (when using `TLS_SECRET_NAME`)
 
 ### Kubernetes Labels
 
@@ -96,6 +134,35 @@ The proxy supports three connection scenarios:
    - Works with any cluster manager (pgpool-II, patroni, etc.)
 
 ## Usage
+
+### Quick Start with Docker
+
+```bash
+# Using environment variables
+docker run -d \
+  -e POSTGRESQL_PROXY_ENABLED=true \
+  -e POSTGRESQL_PROXY_START_PORT=5432 \
+  -e TLS_ENABLE_SELF_SIGNED=true \
+  -e STATIC_BACKENDS='[{"name":"mydb","host":"postgres.example.com","port":5432}]' \
+  -p 5432:5432 \
+  -p 8080:8080 \
+  ghcr.io/hasirciogluhq/xdatabase-proxy:latest
+```
+
+### Local Development
+
+```bash
+# Set environment variables
+export POSTGRESQL_PROXY_ENABLED=true
+export POSTGRESQL_PROXY_START_PORT=5432
+export TLS_ENABLE_SELF_SIGNED=true
+export DEBUG=true
+export KUBECONFIG=~/.kube/config
+export KUBE_CONTEXT=minikube
+
+# Run the proxy
+./xdatabase-proxy
+```
 
 ### Service Definition Examples
 
@@ -178,16 +245,70 @@ postgresql://myuser.db-deployment-1.pool@localhost:3001/mydb
 postgresql://myuser.db-deployment-1.pool@localhost:3001/mydb
 ```
 
+## Features and Capabilities
+
+### Backend Discovery Modes
+
+1. **Kubernetes Mode** (Default)
+   - Automatic service discovery via Kubernetes API
+   - Real-time updates when services change
+   - Label-based routing and filtering
+   - Namespace-aware operations
+
+2. **Static Mode** (Development/Testing)
+   - Configure backends via `STATIC_BACKENDS` environment variable
+   - No Kubernetes dependency
+   - Perfect for local development
+   - Example: `STATIC_BACKENDS='[{"name":"db1","host":"localhost","port":5432}]'`
+
+### TLS/SSL Modes
+
+1. **File-Based TLS**
+   - Set `TLS_CERT_FILE` and `TLS_KEY_FILE`
+   - Highest priority
+   - Use for custom certificates
+
+2. **Kubernetes Secret**
+   - Set `TLS_SECRET_NAME`
+   - Automatically creates secret if it doesn't exist
+   - Self-signed certificate generated on first use
+   - Perfect for production Kubernetes deployments
+
+3. **In-Memory TLS**
+   - Default fallback mode
+   - Use `TLS_ENABLE_SELF_SIGNED=true` to auto-generate
+   - No persistence (regenerated on restart)
+
+### Health Check Endpoints
+
+The proxy exposes health check endpoints on port `8080`:
+
+- `GET /health` - Basic health check
+- `GET /ready` - Readiness check (returns 200 when proxy is ready to accept connections)
+
+```bash
+# Check health
+curl http://localhost:8080/health
+
+# Check readiness
+curl http://localhost:8080/ready
+```
+
 ## Features and Limitations
 
-- Separate database services for each deployment
-- Automatic load balancing and routing based on labels
-- Works with any connection pooling solution
-- Works with any cluster management solution
-- Label-based service discovery (no hardcoded dependencies)
-- Real-time service discovery via Kubernetes API
-- TLS/SSL support with auto-generated certificates
-- Currently only PostgreSQL is fully supported (MySQL and MongoDB planned)
+- ✅ Separate database services for each deployment
+- ✅ Automatic load balancing and routing based on labels
+- ✅ Works with any connection pooling solution
+- ✅ Works with any cluster management solution
+- ✅ Label-based service discovery (no hardcoded dependencies)
+- ✅ Real-time service discovery via Kubernetes API
+- ✅ Full TLS/SSL support with multiple configuration methods
+- ✅ Auto-generated certificates with Kubernetes Secret integration
+- ✅ Static backend support for non-Kubernetes environments
+- ✅ Built-in health and readiness checks
+- ⚠️ Currently only PostgreSQL is fully supported
+- 📋 MySQL support planned
+- 📋 MongoDB support planned
 
 ## Security
 
@@ -213,16 +334,66 @@ If you have any questions or suggestions, please reach out through GitHub Issues
 
 ## Production Deployment
 
-To deploy xdatabase-proxy in your production Kubernetes cluster, simply run:
+### Kubernetes Deployment
+
+To deploy xdatabase-proxy in your production Kubernetes cluster:
 
 ```bash
+# Apply production configuration
 kubectl apply -f kubernetes/examples/production/deploy.yaml
+
+# Or use the raw GitHub URL directly
+kubectl apply -f https://raw.githubusercontent.com/hasirciogluhq/xdatabase-proxy/main/kubernetes/examples/production/deploy.yaml
 ```
 
-Or, you can use the raw GitHub URL directly:
+### Docker Deployment
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/hasirciogluhq/xdatabase-proxy/main/kubernetes/examples/production/deploy.yaml
+# Pull the latest image
+docker pull ghcr.io/hasirciogluhq/xdatabase-proxy:latest
+
+# Run with custom configuration
+docker run -d \
+  --name xdatabase-proxy \
+  -e POSTGRESQL_PROXY_ENABLED=true \
+  -e POSTGRESQL_PROXY_START_PORT=5432 \
+  -e TLS_ENABLE_SELF_SIGNED=true \
+  -e TLS_SECRET_NAME=xdatabase-proxy-tls \
+  -e POD_NAMESPACE=default \
+  -p 5432:5432 \
+  -p 8080:8080 \
+  ghcr.io/hasirciogluhq/xdatabase-proxy:latest
+```
+
+### Environment-Specific Configurations
+
+#### Development
+
+```bash
+export DEBUG=true
+export POSTGRESQL_PROXY_ENABLED=true
+export TLS_ENABLE_SELF_SIGNED=true
+export KUBECONFIG=~/.kube/config
+export KUBE_CONTEXT=minikube
+```
+
+#### Staging
+
+```bash
+export POSTGRESQL_PROXY_ENABLED=true
+export TLS_SECRET_NAME=xdatabase-proxy-tls-staging
+export POD_NAMESPACE=staging
+export POSTGRESQL_PROXY_START_PORT=5432
+```
+
+#### Production
+
+```bash
+export POSTGRESQL_PROXY_ENABLED=true
+export TLS_SECRET_NAME=xdatabase-proxy-tls
+export POD_NAMESPACE=production
+export POSTGRESQL_PROXY_START_PORT=5432
+# DEBUG should not be enabled in production
 ```
 
 ## How it works ?

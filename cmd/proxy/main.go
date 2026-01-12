@@ -114,23 +114,35 @@ func main() {
 		tlsProvider = memory.NewMemoryTLSProvider()
 	}
 
-	// Check if we should generate and store a self-signed certificate
-	if os.Getenv("TLS_ENABLE_SELF_SIGNED") == "true" {
-		logger.Info("TLS_ENABLE_SELF_SIGNED is true. Generating and storing self-signed certificate...")
-		certPEM, keyPEM, err := utils.GenerateSelfSignedCert()
-		if err != nil {
-			logger.Fatal("Failed to generate self-signed cert", "error", err)
-		}
-
-		if err := tlsProvider.Store(context.Background(), certPEM, keyPEM); err != nil {
-			logger.Fatal("Failed to store self-signed cert", "error", err)
-		}
-	}
-
-	// Load initial certificate
+	// Try to load existing certificate first
 	cert, err := tlsProvider.GetCertificate(context.Background())
-	if err != nil {
-		logger.Fatal("Failed to load initial certificate", "error", err)
+
+	// If certificate doesn't exist and TLS_ENABLE_SELF_SIGNED is true, generate it
+	if err != nil && os.Getenv("TLS_ENABLE_SELF_SIGNED") == "true" {
+		logger.Info("Certificate not found. TLS_ENABLE_SELF_SIGNED is true. Generating and storing self-signed certificate...")
+		certPEM, keyPEM, certErr := utils.GenerateSelfSignedCert()
+		if certErr != nil {
+			logger.Fatal("Failed to generate self-signed cert", "error", certErr)
+		}
+
+		// Store the certificate (handles race condition for Kubernetes secrets)
+		if storeErr := tlsProvider.Store(context.Background(), certPEM, keyPEM); storeErr != nil {
+			// If store fails (possibly due to race condition), try to load again
+			logger.Warn("Failed to store self-signed cert, attempting to load existing cert", "error", storeErr)
+			cert, err = tlsProvider.GetCertificate(context.Background())
+			if err != nil {
+				logger.Fatal("Failed to load certificate after store failure", "error", err)
+			}
+		} else {
+			// Store succeeded, load the newly created certificate
+			cert, err = tlsProvider.GetCertificate(context.Background())
+			if err != nil {
+				logger.Fatal("Failed to load newly created certificate", "error", err)
+			}
+		}
+	} else if err != nil {
+		// Certificate doesn't exist and TLS_ENABLE_SELF_SIGNED is not true
+		logger.Fatal("Failed to load initial certificate. Set TLS_ENABLE_SELF_SIGNED=true to auto-generate", "error", err)
 	}
 
 	// 4. Protocol Layer (PostgreSQL)

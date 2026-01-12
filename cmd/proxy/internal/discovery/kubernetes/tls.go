@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -62,7 +63,11 @@ func (p *K8sTLSProvider) Store(ctx context.Context, certPEM, keyPEM []byte) erro
 
 	_, err := p.clientset.CoreV1().Secrets(p.namespace).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
-		// If it already exists, update it
+		// If it already exists (race condition with another instance), that's OK
+		if errors.IsAlreadyExists(err) {
+			return nil
+		}
+		// For other errors, try to update
 		if _, updateErr := p.clientset.CoreV1().Secrets(p.namespace).Update(ctx, secret, metav1.UpdateOptions{}); updateErr != nil {
 			return fmt.Errorf("failed to create or update secret %s/%s: %v (create err: %v)", p.namespace, p.secretName, updateErr, err)
 		}

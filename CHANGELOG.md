@@ -8,16 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Multi-platform Docker build support for macOS, Linux (amd64, arm64, 386)
+- Automated TLS certificate creation in Kubernetes Secret when secret doesn't exist
+- Enhanced TLS configuration with three priority levels:
+  - File-based TLS (TLS_CERT_FILE + TLS_KEY_FILE)
+  - Kubernetes Secret TLS (TLS_SECRET_NAME)
+  - Memory-based TLS with self-signed generation
+- Static backend support for non-Kubernetes deployments via STATIC_BACKENDS environment variable
+- Health check and readiness endpoints on port 8080 (/health, /ready)
+- Debug logging mode with DEBUG environment variable
+- Comprehensive environment variable documentation in README
+- Go module caching in GitHub Actions for faster builds
+- Matrix testing strategy for Ubuntu and macOS platforms in CI/CD
 
 ### Changed
-
-### Deprecated
-
-### Removed
+- Updated Dockerfile to explicitly set CGO_ENABLED=0 and GOOS=linux for cross-platform compatibility
+- Enhanced Dockerfile with ca-certificates, tzdata, health checks, and proper port exposure
+- Improved GitHub Actions workflow with separate test job for multiple platforms
+- Refactored TLS provider initialization logic for better multi-instance safety
+- Updated README.md with complete environment variable reference and usage examples
+- Improved logging for TLS provider selection and certificate operations
 
 ### Fixed
+- macOS build compatibility issues with Docker and GitHub Actions
+- Multi-instance race condition in TLS certificate generation
+- Kubernetes Secret auto-creation now properly handles concurrent pod startups
 
 ### Security
+- Self-signed certificates now only generated once at startup to prevent race conditions
+- Kubernetes Secret-based TLS provider automatically creates missing certificates securely
 
 ## [2.0.0] - 2026-01-12
 

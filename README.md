@@ -1,6 +1,6 @@
 # XDatabase Proxy
 
-![XDatabase Proxy in Action](static/images/works-perfect.png)
+![xdatabase-proxy v2.0.0 banner](static/images/xdatabase-proxy-en.jpeg)
 
 > **XDatabase Proxy in Action:**
 > The screenshot demonstrates a successful, secure PostgreSQL connection established through xdatabase-proxy. The proxy automatically generates and manages TLS certificates, ensuring encrypted traffic between your client and the database. This seamless integration with Kubernetes and real-time certificate handling provides both security and ease of use for your cloud-native database workloads.
@@ -203,6 +203,9 @@ Cluster Services:
 **Connection String Routing:**
 - `postgres://user.db-prod@proxy:5432/db` → uses `deployment_id=db-prod, pooled=false`
 - `postgres://user.db-prod.pool@proxy:5432/db` → uses `deployment_id=db-prod, pooled=true`
+
+## PoC/PoW 
+![XDatabase Proxy in Action](static/images/works-perfect.png)
 
 ## Usage Examples
 

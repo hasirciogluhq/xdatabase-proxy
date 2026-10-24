@@ -11,11 +11,15 @@ permissions:
 jobs:
   # Full CI (tests, vulncheck, manifests, image scan, e2e) must pass before anything is published.
   # If it fails on a tag, nothing is released: fix, delete the tag and tag again.
+  # Branch pushes already run ci.yaml on their own, so only tags call it here.
   ci:
+    if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/ci.yaml
 
   image:
     needs: ci
+    # runs when ci passed (tags) or was skipped (branches), never when it failed
+    if: ${{ !cancelled() && needs.ci.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

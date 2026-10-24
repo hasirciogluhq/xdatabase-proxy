@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Documentation site in `docs/` (configuration, routing, discovery, TLS, deployment targets, use cases, security, operations, development), published with GitHub Pages by `pages.yaml`
 - `AGENTS.md` project guide for AI coding agents
+- README lists supported databases and a roadmap (PostgreSQL-compatible, TLS SNI routing, MySQL)
 - Community files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `SUPPORT.md`, `.editorconfig`
 - `pkg/` (reusable `proxy` server, `tlsutil`) and `cmd/proxy/internal/` (project code) layout
 - Kubernetes manifests split by purpose: `base`, `production/nodeport`, `production/daemonset-hostport`, `development`, `test`
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: race tests, govulncheck, manifest rendering, image scan, end-to-end psql test; Dependabot
 - Release pipeline: tag runs the full CI first, then multi-arch image with SBOM and provenance, then the GitHub release
 - Trivy runs as a container instead of a third-party action
+- Publish calls the full CI only for tags, so branch pushes no longer run CI twice
 
 ### Changed
 - Static images renamed: `banner-en.jpeg`, `banner-tr.jpeg`, `banner-default.jpeg`, `psql-tls-connection.png`

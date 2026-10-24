@@ -22,7 +22,7 @@ XDatabase Proxy is a small PostgreSQL connection router. Clients connect to one 
 
 - It does not parse SQL, pool connections or balance load between replicas of one database. Put a pooler such as pgbouncer behind the pooled endpoint, and a cluster manager such as Patroni behind the direct endpoint.
 - It does not authenticate users. Authentication happens on the backend.
-- Only PostgreSQL is supported.
+- Only PostgreSQL (and PostgreSQL-compatible databases) is supported. See the roadmap in the README.
 
 ## Where to go next
 

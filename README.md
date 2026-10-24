@@ -15,6 +15,21 @@ The proxy strips the routing suffix before forwarding, so the backend sees plain
 
 Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in [docs/](docs)).
 
+## Supported databases
+
+| Database | Status | Notes |
+| --- | --- | --- |
+| PostgreSQL | ✅ Supported | Routing by `user.deployment[.pool]` |
+| PostgreSQL-compatible (CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB, CrateDB, Aurora/AlloyDB PostgreSQL) | 🧪 Should work, untested | Same wire protocol, use `DATABASE_TYPE=postgresql` |
+| MongoDB, Redis, ClickHouse (native) | 📋 Planned | Needs TLS SNI routing, since their login arrives after the connection is open |
+| MySQL / MariaDB | 📋 Planned, hardest | The server speaks first and the password scramble is bound to the backend |
+
+### Roadmap, easiest first
+
+1. **PostgreSQL-compatible databases**: no code needed, only test and document them.
+2. **TLS SNI routing** (`deployment.proxy.example.com`): one generic handler that reads the SNI from the TLS ClientHello and forwards bytes. It unlocks every TLS-capable protocol (MongoDB, Redis, ClickHouse, …) and also works for PostgreSQL. This is the best next step.
+3. **MySQL / MariaDB**: the proxy must answer the greeting itself and handle authentication, so it is a much larger change.
+
 ## How it is built
 
 | Concern | Implementation |

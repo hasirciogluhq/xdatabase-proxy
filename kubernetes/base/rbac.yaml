@@ -1,0 +1,51 @@
+# Cluster-wide, read-only discovery of labelled Services.
+# To restrict the proxy to one namespace set WATCH_NAMESPACE and replace this
+# ClusterRole/ClusterRoleBinding with a Role/RoleBinding in that namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xdatabase-proxy
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xdatabase-proxy
+subjects:
+  - kind: ServiceAccount
+    name: xdatabase-proxy
+    namespace: xdatabase-proxy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xdatabase-proxy
+---
+# Own namespace only: manage the self-signed TLS secret (TLS_MODE=kubernetes).
+# Not needed when you provide the certificate yourself (e.g. cert-manager).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: xdatabase-proxy-tls
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["xdatabase-proxy-tls"]
+    verbs: ["get", "update"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: xdatabase-proxy-tls
+subjects:
+  - kind: ServiceAccount
+    name: xdatabase-proxy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: xdatabase-proxy-tls

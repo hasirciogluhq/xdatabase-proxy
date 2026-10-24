@@ -1,3 +1,4 @@
+// Package config loads the proxy configuration from environment variables.
 package config
 
 import (
@@ -5,292 +6,134 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
-// RuntimeEnvironment represents the execution environment
-type RuntimeEnvironment string
-
-const (
-	RuntimeKubernetes RuntimeEnvironment = "kubernetes"
-	RuntimeContainer  RuntimeEnvironment = "container"
-	RuntimeVM         RuntimeEnvironment = "vm"
-)
-
-// DiscoveryMode represents backend discovery strategy
-type DiscoveryMode string
-
-const (
-	DiscoveryKubernetes DiscoveryMode = "kubernetes"
-	DiscoveryStatic     DiscoveryMode = "static"
-)
-
-// TLSMode represents TLS certificate source
-type TLSMode string
-
-const (
-	TLSModeFile       TLSMode = "file"
-	TLSModeKubernetes TLSMode = "kubernetes"
-	TLSModeMemory     TLSMode = "memory"
-)
-
-// Config holds all application configuration
 type Config struct {
-	// Core
-	Debug        bool
-	DatabaseType string // postgresql, mysql, mongodb
+	Debug     bool
+	ProxyPort string
+	// HealthPort serves /health and /ready.
+	HealthPort  string
+	MaxConns    int
+	DialTimeout time.Duration
 
-	// Runtime
-	Runtime   RuntimeEnvironment
-	Namespace string // Only for Kubernetes runtime
+	// Discovery is "static" or "kubernetes".
+	Discovery      string
+	StaticBackends string // "deployment[.pool]=host:port,..."
+	// Namespace is where the proxy runs (TLS secret). WatchNamespace limits
+	// service discovery; empty means all namespaces (needs a ClusterRole).
+	Namespace      string
+	WatchNamespace string
+	ClusterDomain  string
+	// Out-of-cluster access to the Kubernetes API (empty in a pod = in-cluster).
+	KubeConfig  string
+	KubeContext string
 
-	// Server
-	HealthServerPort string
-	ProxyStartPort   string
-
-	// Backend Discovery
-	DiscoveryMode  DiscoveryMode
-	StaticBackends string
-	KubeConfigPath string
-	KubeContext    string
-
-	// TLS Configuration
-	TLSEnabled              bool
-	TLSMode                 TLSMode
-	TLSCertFile             string
-	TLSKeyFile              string
-	TLSSecretName           string
-	TLSAutoGenerate         bool // Generate self-signed if cert doesn't exist
-	TLSAutoRenew            bool // Regenerate if cert is invalid/expired
-	TLSRenewalThresholdDays int  // Days before expiry to trigger renewal
+	TLSEnabled       bool
+	TLSMode          string // file, kubernetes, memory
+	TLSCertFile      string
+	TLSKeyFile       string
+	TLSSecretName    string
+	TLSAutoGenerate  bool
+	TLSRenewalWindow time.Duration
 }
 
-// LoadFromEnv loads configuration from environment variables
-func LoadFromEnv() (*Config, error) {
-	cfg := &Config{
-		// Core
-		Debug:        getEnvBool("DEBUG", false),
-		DatabaseType: getEnv("DATABASE_TYPE", "postgresql"),
+func Load() (*Config, error) {
+	c := &Config{
+		Debug:          boolEnv("DEBUG", false),
+		ProxyPort:      env("PROXY_START_PORT", env("POSTGRESQL_PROXY_START_PORT", "5432")),
+		HealthPort:     env("HEALTH_SERVER_PORT", "8080"),
+		MaxConns:       intEnv("MAX_CONNECTIONS", 10000),
+		DialTimeout:    time.Duration(intEnv("DIAL_TIMEOUT_SECONDS", 5)) * time.Second,
+		StaticBackends: env("STATIC_BACKENDS", ""),
+		Namespace:      env("NAMESPACE", env("POD_NAMESPACE", namespaceFromServiceAccount())),
+		WatchNamespace: env("WATCH_NAMESPACE", ""),
+		ClusterDomain:  env("CLUSTER_DOMAIN", "cluster.local"),
+		KubeConfig:     env("KUBECONFIG", ""),
+		KubeContext:    env("KUBE_CONTEXT", ""),
 
-		// Runtime - Auto-detect or explicit
-		Runtime:   determineRuntime(),
-		Namespace: determineNamespace(),
-
-		// Server
-		HealthServerPort: getEnv("HEALTH_SERVER_PORT", "8080"),
-		ProxyStartPort:   getEnv("PROXY_START_PORT", "5432"),
-
-		// Backend Discovery
-		DiscoveryMode:  determineDiscoveryMode(),
-		StaticBackends: getEnv("STATIC_BACKENDS", ""),
-		KubeConfigPath: getEnv("KUBECONFIG", ""),
-		KubeContext:    getEnv("KUBE_CONTEXT", ""),
-
-		// TLS
-		TLSEnabled:              getEnvBool("TLS_ENABLED", true),
-		TLSMode:                 determineTLSMode(),
-		TLSCertFile:             getEnv("TLS_CERT_FILE", ""),
-		TLSKeyFile:              getEnv("TLS_KEY_FILE", ""),
-		TLSSecretName:           getEnv("TLS_SECRET_NAME", ""),
-		TLSAutoGenerate:         getEnvBool("TLS_AUTO_GENERATE", true),
-		TLSAutoRenew:            getEnvBool("TLS_AUTO_RENEW", true),
-		TLSRenewalThresholdDays: getEnvInt("TLS_RENEWAL_THRESHOLD_DAYS", 30),
+		TLSEnabled:       boolEnv("TLS_ENABLED", true),
+		TLSCertFile:      env("TLS_CERT_FILE", ""),
+		TLSKeyFile:       env("TLS_KEY_FILE", ""),
+		TLSSecretName:    env("TLS_SECRET_NAME", ""),
+		TLSAutoGenerate:  boolEnv("TLS_AUTO_GENERATE", true),
+		TLSRenewalWindow: time.Duration(intEnv("TLS_RENEWAL_THRESHOLD_DAYS", 30)) * 24 * time.Hour,
 	}
 
-	// Legacy support
-	cfg.applyLegacySupport()
-
-	// Validation
-	if err := cfg.validate(); err != nil {
-		return nil, err
+	if t := env("DATABASE_TYPE", "postgresql"); t != "postgresql" {
+		return nil, fmt.Errorf("unsupported DATABASE_TYPE %q (supported: postgresql)", t)
 	}
 
-	return cfg, nil
-}
-
-// validate ensures configuration is coherent
-func (c *Config) validate() error {
-	// Validate database type
-	validDatabases := []string{"postgresql", "mysql", "mongodb"}
-	if !contains(validDatabases, c.DatabaseType) {
-		return fmt.Errorf("unsupported DATABASE_TYPE: %s (supported: %s)",
-			c.DatabaseType, strings.Join(validDatabases, ", "))
+	c.Discovery = strings.ToLower(env("DISCOVERY_MODE", ""))
+	if c.Discovery == "" {
+		c.Discovery = "kubernetes"
+		if c.StaticBackends != "" {
+			c.Discovery = "static"
+		}
+	}
+	if c.Discovery != "static" && c.Discovery != "kubernetes" {
+		return nil, fmt.Errorf("unknown DISCOVERY_MODE %q (static, kubernetes)", c.Discovery)
 	}
 
-	// TLS validation only if TLS is enabled
+	c.TLSMode = strings.ToLower(env("TLS_MODE", ""))
+	if c.TLSMode == "" {
+		switch {
+		case c.TLSCertFile != "":
+			c.TLSMode = "file"
+		case c.TLSSecretName != "":
+			c.TLSMode = "kubernetes"
+		default:
+			c.TLSMode = "memory"
+		}
+	}
+
 	if c.TLSEnabled {
-		if c.TLSMode == TLSModeFile {
+		switch c.TLSMode {
+		case "file":
 			if c.TLSCertFile == "" || c.TLSKeyFile == "" {
-				return fmt.Errorf("TLS_CERT_FILE and TLS_KEY_FILE must be set when using file-based TLS")
+				return nil, fmt.Errorf("TLS_CERT_FILE and TLS_KEY_FILE are required when TLS_MODE=file")
 			}
-		}
-
-		if c.TLSMode == TLSModeKubernetes {
+		case "kubernetes":
 			if c.TLSSecretName == "" {
-				return fmt.Errorf("TLS_SECRET_NAME must be set when using kubernetes TLS mode")
+				return nil, fmt.Errorf("TLS_SECRET_NAME is required when TLS_MODE=kubernetes")
 			}
-			if c.DiscoveryMode == DiscoveryStatic {
-				return fmt.Errorf("kubernetes TLS mode requires kubernetes discovery (cannot use STATIC_BACKENDS)")
-			}
+		case "memory":
+		default:
+			return nil, fmt.Errorf("unknown TLS_MODE %q (file, kubernetes, memory)", c.TLSMode)
 		}
 	}
-
-	// Validate discovery mode
-	if c.DiscoveryMode == DiscoveryKubernetes && c.Runtime == RuntimeContainer && c.KubeConfigPath == "" {
-		return fmt.Errorf("kubernetes discovery in container runtime requires KUBECONFIG path")
-	}
-
-	return nil
+	return c, nil
 }
 
-// applyLegacySupport handles backward compatibility
-func (c *Config) applyLegacySupport() {
-	// Legacy: POSTGRESQL_PROXY_ENABLED
-	if getEnvBool("POSTGRESQL_PROXY_ENABLED", false) {
-		c.DatabaseType = "postgresql"
-	}
-
-	// Legacy: POSTGRESQL_PROXY_START_PORT
-	if legacyPort := getEnv("POSTGRESQL_PROXY_START_PORT", ""); legacyPort != "" {
-		c.ProxyStartPort = legacyPort
-	}
-
-	// Legacy: TLS_ENABLE_SELF_SIGNED
-	if getEnvBool("TLS_ENABLE_SELF_SIGNED", false) {
-		c.TLSAutoGenerate = true
-	}
-
-	// Legacy: POD_NAMESPACE
-	if podNS := getEnv("POD_NAMESPACE", ""); podNS != "" && c.Namespace == "" {
-		c.Namespace = podNS
-	}
+// NeedsKube reports whether a Kubernetes API client is required.
+func (c *Config) NeedsKube() bool {
+	return c.Discovery == "kubernetes" || (c.TLSEnabled && c.TLSMode == "kubernetes")
 }
 
-// Helper functions
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func namespaceFromServiceAccount() string {
+	if b, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		return strings.TrimSpace(string(b))
 	}
-	return defaultValue
-}
-
-func getEnvBool(key string, defaultValue bool) bool {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	boolValue, err := strconv.ParseBool(value)
-	if err != nil {
-		return defaultValue
-	}
-	return boolValue
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	intValue, err := strconv.Atoi(value)
-	if err != nil {
-		return defaultValue
-	}
-	return intValue
-}
-
-func determineRuntime() RuntimeEnvironment {
-	// Explicit runtime setting
-	if runtime := os.Getenv("RUNTIME"); runtime != "" {
-		switch strings.ToLower(runtime) {
-		case "kubernetes", "k8s":
-			return RuntimeKubernetes
-		case "container", "docker":
-			return RuntimeContainer
-		case "vm", "virtual-machine", "bare-metal":
-			return RuntimeVM
-		}
-	}
-
-	// Auto-detect: Check if running in Kubernetes
-	if _, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount"); err == nil {
-		return RuntimeKubernetes
-	}
-
-	// Auto-detect: Check if running in container
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		return RuntimeContainer
-	}
-
-	// Default to VM
-	return RuntimeVM
-}
-
-func determineNamespace() string {
-	// Explicit namespace
-	if ns := os.Getenv("NAMESPACE"); ns != "" {
-		return ns
-	}
-
-	// Kubernetes downward API
-	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
-		return ns
-	}
-
-	// Read from service account (in-cluster)
-	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-		return strings.TrimSpace(string(data))
-	}
-
 	return "default"
 }
 
-func determineDiscoveryMode() DiscoveryMode {
-	// Explicit mode
-	if mode := os.Getenv("DISCOVERY_MODE"); mode != "" {
-		if strings.ToLower(mode) == "static" {
-			return DiscoveryStatic
-		}
-		return DiscoveryKubernetes
+func env(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-
-	// Auto-detect: Static if STATIC_BACKENDS is set
-	if os.Getenv("STATIC_BACKENDS") != "" {
-		return DiscoveryStatic
-	}
-
-	return DiscoveryKubernetes
+	return def
 }
 
-func determineTLSMode() TLSMode {
-	// Explicit mode
-	if mode := os.Getenv("TLS_MODE"); mode != "" {
-		switch strings.ToLower(mode) {
-		case "file", "filesystem":
-			return TLSModeFile
-		case "kubernetes", "k8s", "secret":
-			return TLSModeKubernetes
-		case "memory", "in-memory":
-			return TLSModeMemory
-		}
+func boolEnv(key string, def bool) bool {
+	if v, err := strconv.ParseBool(os.Getenv(key)); err == nil {
+		return v
 	}
-
-	// Auto-detect based on configuration
-	if os.Getenv("TLS_CERT_FILE") != "" {
-		return TLSModeFile
-	}
-
-	if os.Getenv("TLS_SECRET_NAME") != "" {
-		return TLSModeKubernetes
-	}
-
-	return TLSModeMemory
+	return def
 }
 
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
+func intEnv(key string, def int) int {
+	if v, err := strconv.Atoi(os.Getenv(key)); err == nil {
+		return v
 	}
-	return false
+	return def
 }

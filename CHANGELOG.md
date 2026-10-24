@@ -8,14 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `pkg/` (reusable `proxy` server, `tlsutil`) and `cmd/proxy/internal/` (project code) layout
+- Kubernetes manifests split by purpose: `base`, `production/nodeport`, `production/daemonset-hostport`, `development`, `test`
+- Informer with a route index for service discovery; `WATCH_NAMESPACE`, `CLUSTER_DOMAIN`, `MAX_CONNECTIONS`, `DIAL_TIMEOUT_SECONDS`
+- Graceful shutdown, GSSENC negotiation, `-healthcheck` flag, hot certificate reload
+- CI: race tests, govulncheck, manifest rendering, image scan, end-to-end psql test; Dependabot
+- Release pipeline with multi-arch image, SBOM and provenance attestation
 
 ### Changed
+- PostgreSQL wire handling now uses `pgx/pgproto3`; logging is JSON `slog`
+- Self-signed certificates are ECDSA P-256 with random serials; TLS minimum is 1.2
+- Image is distroless, non-root; Go 1.26
+- Factory/strategy layers, unused interfaces and the MySQL/MongoDB stubs were removed
+- `xdatabase-proxy-pooled` defaults to `false` when absent; `xdatabase-proxy-destination-port` is honoured
+- Release notes are extracted with `awk` instead of an npm tool
 
 ### Fixed
+- Unbounded allocation from the client-supplied startup length (DoS)
+- No startup deadline (slowloris) and unbounded SSLRequest recursion
+- Connections no longer hang when only one side closes
+- `TLS_AUTO_RENEW` was a no-op; our own certificates are now actually renewed
 
 ### Removed
+- Env vars: `RUNTIME`, `TLS_MODE` aliases, `TLS_AUTO_RENEW`, `TLS_ENABLE_SELF_SIGNED`, `POSTGRESQL_PROXY_ENABLED`
+- Over-broad RBAC (`secrets` delete, `nodes`, `deployments`, …) in the example manifests
+- `linux/386` image; stale test scripts and `Dockerfile.test`
 
 ### Security
+- Least-privilege RBAC, hardened pod security context, startup parameters no longer logged
+- Backend addresses are no longer leaked in client error messages
 
 ## [2.0.0] - 2026-01-12
 

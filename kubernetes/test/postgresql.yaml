@@ -1,34 +1,36 @@
+# Test backend: a plain PostgreSQL discoverable by the proxy
+# (connect with user "postgres.test-db" through the proxy). Do not use in production.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgresql
-  labels:
-    app: postgresql
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app: postgresql
+    matchLabels: {app: postgresql}
   template:
     metadata:
-      labels:
-        app: postgresql
+      labels: {app: postgresql}
     spec:
       containers:
         - name: postgresql
-          image: postgres:17
+          image: postgres:17-alpine
           ports:
-            - containerPort: 5432
-              name: postgresql
+            - {name: postgresql, containerPort: 5432}
           env:
-            - name: POSTGRES_DB
-              value: "db"
-            - name: POSTGRES_PASSWORD
-              value: "1234"
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
+            - {name: POSTGRES_DB, value: db}
+            - {name: POSTGRES_PASSWORD, value: "1234"}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  labels:
+    xdatabase-proxy-enabled: "true"
+    xdatabase-proxy-database-type: postgresql
+    xdatabase-proxy-deployment-id: test-db
+    xdatabase-proxy-pooled: "false"
+spec:
+  selector: {app: postgresql}
+  ports:
+    - {name: postgresql, port: 5432, targetPort: postgresql}

@@ -1,0 +1,87 @@
+# Production, option A: Deployment exposed through a NodePort Service.
+# Clients connect to <any-node-ip>:30432. Put a cloud/external LB in front for HA.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xdatabase-proxy
+spec:
+  replicas: 3
+  selector:
+    matchLabels: {app: xdatabase-proxy}
+  strategy:
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels: {app: xdatabase-proxy}
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app: xdatabase-proxy}
+      serviceAccountName: xdatabase-proxy
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: proxy
+          image: ghcr.io/hasirciogluhq/xdatabase-proxy:latest # pin a version tag or digest in production
+          ports:
+            - name: postgresql
+              containerPort: 5432
+            - name: health
+              containerPort: 8080
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: DISCOVERY_MODE
+              value: kubernetes
+            - name: TLS_ENABLED
+              value: "true"
+            - name: TLS_MODE
+              value: kubernetes
+            - name: TLS_SECRET_NAME
+              value: xdatabase-proxy-tls
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {memory: 512Mi}
+          livenessProbe:
+            httpGet: {path: /health, port: health}
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: {path: /ready, port: health}
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xdatabase-proxy
+spec:
+  type: NodePort
+  # Local keeps the client source IP and avoids a second hop.
+  externalTrafficPolicy: Local
+  selector: {app: xdatabase-proxy}
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+      nodePort: 30432
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: xdatabase-proxy
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: xdatabase-proxy}

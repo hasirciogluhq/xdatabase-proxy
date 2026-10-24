@@ -1,0 +1,7 @@
+# Development: one replica, debug logs, in-memory self-signed TLS, :latest image.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: xdatabase-proxy
+resources:
+  - ../base
+  - proxy.yaml

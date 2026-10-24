@@ -11,4 +11,5 @@ build/
 dist/
 
 ./development_data
-development_data
+development_data.DS_Store
+.DS_Store

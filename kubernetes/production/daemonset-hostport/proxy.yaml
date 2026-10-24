@@ -1,0 +1,62 @@
+# Production, option B: one proxy per node, published directly on the node's
+# port 5432 (hostPort). No Service and no kube-proxy hop; point your external
+# load balancer or DNS at the node IPs.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: xdatabase-proxy
+spec:
+  selector:
+    matchLabels: {app: xdatabase-proxy}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 1}
+  template:
+    metadata:
+      labels: {app: xdatabase-proxy}
+    spec:
+      priorityClassName: system-node-critical
+      tolerations:
+        - operator: Exists
+      serviceAccountName: xdatabase-proxy
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: proxy
+          image: ghcr.io/hasirciogluhq/xdatabase-proxy:latest # pin a version tag or digest in production
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              hostPort: 5432
+            - name: health
+              containerPort: 8080
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: DISCOVERY_MODE
+              value: kubernetes
+            - name: TLS_ENABLED
+              value: "true"
+            - name: TLS_MODE
+              value: kubernetes
+            - name: TLS_SECRET_NAME
+              value: xdatabase-proxy-tls
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {memory: 512Mi}
+          livenessProbe:
+            httpGet: {path: /health, port: health}
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: {path: /ready, port: health}
+            periodSeconds: 5

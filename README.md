@@ -1,6 +1,6 @@
 # XDatabase Proxy
 
-![xdatabase-proxy banner](static/images/xdatabase-proxy-en.jpeg)
+![xdatabase-proxy banner](static/images/banner-en.jpeg)
 
 A small, dependency-light PostgreSQL connection router. Clients connect to one endpoint and the proxy picks the backend from the **username**, terminating TLS itself. It runs in Kubernetes, containers, VMs and bare metal.
 
@@ -12,6 +12,8 @@ postgresql://user.<deployment>[.pool]@proxy:5432/db
 - `user.db-prod.pool` → the pooled service (pgbouncer, odyssey, …) of the same deployment
 
 The proxy strips the routing suffix before forwarding, so the backend sees plain `user`. If `database` is empty or equals the full login (psql's default), it becomes `postgres`.
+
+Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in [docs/](docs)).
 
 ## How it is built
 
@@ -111,4 +113,4 @@ CI (`.github/workflows/ci.yaml`): format, vet, race tests, govulncheck, manifest
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Issues: https://github.com/hasirciogluhq/xdatabase-proxy/issues
+MIT, see [LICENSE](LICENSE). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Security: [SECURITY.md](SECURITY.md). Help: [SUPPORT.md](SUPPORT.md). Issues: https://github.com/hasirciogluhq/xdatabase-proxy/issues

@@ -8,17 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Documentation site in `docs/` (configuration, routing, discovery, TLS, deployment targets, use cases, security, operations, development), published with GitHub Pages by `pages.yaml`
+- `AGENTS.md` project guide for AI coding agents
+- Community files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `SUPPORT.md`, `.editorconfig`
 - `pkg/` (reusable `proxy` server, `tlsutil`) and `cmd/proxy/internal/` (project code) layout
 - Kubernetes manifests split by purpose: `base`, `production/nodeport`, `production/daemonset-hostport`, `development`, `test`
 - Informer with a route index for service discovery; `WATCH_NAMESPACE`, `CLUSTER_DOMAIN`, `MAX_CONNECTIONS`, `DIAL_TIMEOUT_SECONDS`
 - Graceful shutdown, GSSENC negotiation, `-healthcheck` flag, hot certificate reload
 - CI: race tests, govulncheck, manifest rendering, image scan, end-to-end psql test; Dependabot
-- Release pipeline with multi-arch image, SBOM and provenance attestation
+- Release pipeline: tag runs the full CI first, then multi-arch image with SBOM and provenance, then the GitHub release
+- Trivy runs as a container instead of a third-party action
 
 ### Changed
+- Static images renamed: `banner-en.jpeg`, `banner-tr.jpeg`, `banner-default.jpeg`, `psql-tls-connection.png`
 - PostgreSQL wire handling now uses `pgx/pgproto3`; logging is JSON `slog`
 - Self-signed certificates are ECDSA P-256 with random serials; TLS minimum is 1.2
-- Image is distroless, non-root; Go 1.26
+- Image is distroless, non-root; Go 1.27
 - Factory/strategy layers, unused interfaces and the MySQL/MongoDB stubs were removed
 - `xdatabase-proxy-pooled` defaults to `false` when absent; `xdatabase-proxy-destination-port` is honoured
 - Release notes are extracted with `awk` instead of an npm tool

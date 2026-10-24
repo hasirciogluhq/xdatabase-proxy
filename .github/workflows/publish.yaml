@@ -9,18 +9,13 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - run: go vet ./...
-      - run: go test -race ./...
+  # Full CI (tests, vulncheck, manifests, image scan, e2e) must pass before anything is published.
+  # If it fails on a tag, nothing is released: fix, delete the tag and tag again.
+  ci:
+    uses: ./.github/workflows/ci.yaml
 
   image:
-    needs: test
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: read

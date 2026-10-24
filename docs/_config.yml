@@ -1,0 +1,22 @@
+title: XDatabase Proxy
+description: PostgreSQL connection router for Kubernetes, containers and VMs
+remote_theme: just-the-docs/just-the-docs@v0.10.0
+url: https://hasirciogluhq.github.io
+baseurl: /xdatabase-proxy
+color_scheme: light
+search_enabled: true
+heading_anchors: true
+back_to_top: true
+back_to_top_text: Back to top
+aux_links:
+  GitHub: https://github.com/hasirciogluhq/xdatabase-proxy
+  Changelog: https://github.com/hasirciogluhq/xdatabase-proxy/blob/main/CHANGELOG.md
+footer_content: MIT License. Source on GitHub.
+plugins:
+  - jekyll-remote-theme
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: false
+exclude:
+  - README.md

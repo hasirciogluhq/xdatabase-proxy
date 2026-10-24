@@ -32,4 +32,4 @@ Use the issue templates. For security problems do **not** open a public issue, s
 
 ## License
 
-By contributing you agree that your contributions are licensed under the [MIT License](LICENSE).
+By contributing you agree that your contributions are licensed under the [Apache License 2.0](LICENSE), as described in section 5 of that license.

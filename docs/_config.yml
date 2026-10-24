@@ -11,7 +11,7 @@ back_to_top_text: Back to top
 aux_links:
   GitHub: https://github.com/hasirciogluhq/xdatabase-proxy
   Changelog: https://github.com/hasirciogluhq/xdatabase-proxy/blob/main/CHANGELOG.md
-footer_content: MIT License. Source on GitHub.
+footer_content: Apache License 2.0. Source on GitHub.
 plugins:
   - jekyll-remote-theme
   - jekyll-relative-links

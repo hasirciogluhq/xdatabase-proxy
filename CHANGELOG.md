@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-24
+
+### Changed
+- License is now the plain Apache License 2.0. The previous dual license with a paid commercial tier for organizations above USD 100,000 revenue is gone: the software is free for all uses, including commercial. Versions up to 2.1.0 were published under the old text
+- README, docs, CONTRIBUTING and AGENTS.md state the new license; added a `NOTICE` file
+
 ## [2.1.0] - 2026-10-24
 
 ### Added

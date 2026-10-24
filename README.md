@@ -131,4 +131,4 @@ CI (`.github/workflows/ci.yaml`): format, vet, race tests, govulncheck, manifest
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Security: [SECURITY.md](SECURITY.md). Help: [SUPPORT.md](SUPPORT.md). Issues: https://github.com/hasirciogluhq/xdatabase-proxy/issues
+Licensed under the [Apache License 2.0](LICENSE), free for any use including commercial; no fees or revenue limits. Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Security: [SECURITY.md](SECURITY.md). Help: [SUPPORT.md](SUPPORT.md). Issues: https://github.com/hasirciogluhq/xdatabase-proxy/issues

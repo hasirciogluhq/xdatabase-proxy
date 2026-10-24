@@ -44,7 +44,7 @@ Threat model and hardening: docs/security.md
 Health, logs, troubleshooting: docs/operations.md
 Tests, CI, release, doc rules: docs/development.md
 History of changes: CHANGELOG.md
-Contribution process: CONTRIBUTING.md. Conduct: CODE_OF_CONDUCT.md. Vulnerability reporting: SECURITY.md. Help: SUPPORT.md. License: LICENSE (MIT).
+Contribution process: CONTRIBUTING.md. Conduct: CODE_OF_CONDUCT.md. Vulnerability reporting: SECURITY.md. Help: SUPPORT.md. License: Apache-2.0 (LICENSE, NOTICE). It is free for commercial use; do not add paid or revenue-based terms.
 
 COMMANDS
 

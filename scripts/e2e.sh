@@ -118,7 +118,9 @@ test_postgres() {
   check "plaintext connection" "postgres" psql "$base sslmode=disable" -c "select current_user"
   check "pooled route (.pool)" "postgres" psql "host=proxy-pg user=postgres.e2e.pool dbname=postgres sslmode=require" -c "select current_user"
   check "database defaults to postgres when equal to login" "postgres" psql "host=proxy-pg user=postgres.e2e sslmode=disable" -c "select current_database()"
-  check "TLS is really negotiated with the client" "SSL connection" psql "$base sslmode=require" -c '\conninfo'
+  # \conninfo: psql 17 prints "SSL connection (protocol: ...)", psql 18 prints a table row "SSL Connection|true"
+  tls_in_use() { psql "$base sslmode=require" -c '\conninfo' | grep -iE 'ssl connection( \(|\|true)'; }
+  check "TLS is really negotiated with the client" "onnection" tls_in_use
   check "direct TLS (sslnegotiation=direct)" "postgres" psql "$base sslmode=require sslnegotiation=direct" -c "select current_user"
   check_fails "unknown deployment is rejected" "no backend for this user" psql "host=proxy-pg user=postgres.nope dbname=postgres sslmode=disable" -c "select 1"
   check_fails "login without deployment is rejected" "no backend for this user" psql "host=proxy-pg user=postgres dbname=postgres sslmode=disable" -c "select 1"
@@ -147,9 +149,12 @@ test_mongodb() {
   # the proxy only passes TLS through, routed by host name (SNI)
   openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=mongo \
     -keyout "$WORK/mongo.key" -out "$WORK/mongo.crt" >/dev/null 2>&1 || { echo "openssl failed"; return 1; }
-  cat "$WORK/mongo.key" "$WORK/mongo.crt" > "$WORK/mongo.pem" && chmod 644 "$WORK/mongo.pem"
-  run_bg mongo "$MONGO_IMAGE" -v "$WORK/mongo.pem:/tls/mongo.pem:ro" "$MONGO_IMAGE" \
-    mongod --tlsMode requireTLS --tlsCertificateKeyFile /tls/mongo.pem --bind_ip_all || return 1
+  cat "$WORK/mongo.key" "$WORK/mongo.crt" > "$WORK/mongo.pem" && chmod 644 "$WORK/mongo.pem" "$WORK/mongo.crt"
+  # mongod 8 refuses TLS without a chain of trust: the self-signed certificate is its own CA,
+  # and clients do not have to present a certificate.
+  run_bg mongo "$MONGO_IMAGE" -v "$WORK/mongo.pem:/tls/mongo.pem:ro" -v "$WORK/mongo.crt:/tls/ca.pem:ro" "$MONGO_IMAGE" \
+    mongod --tlsMode requireTLS --tlsCertificateKeyFile /tls/mongo.pem --tlsCAFile /tls/ca.pem \
+    --tlsAllowConnectionsWithoutCertificates --bind_ip_all || return 1
   wait_for "mongod" mongo docker exec mongo mongosh --quiet --tls --tlsAllowInvalidCertificates --tlsAllowInvalidHostnames \
     --eval "db.runCommand({ping:1}).ok" || return 1
   ALIASES=(--network-alias m1.mongo.example.com --network-alias m1.pool.mongo.example.com --network-alias nope.mongo.example.com)

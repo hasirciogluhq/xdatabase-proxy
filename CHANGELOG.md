@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-24
+
 ### Added
 - `scripts/e2e.sh`: end-to-end tests against real PostgreSQL, Redis, ClickHouse and MongoDB in Docker, using their own CLIs in client containers; CI runs it as a matrix job per database
 - Routing strategies: every route can be reached by username and/or TLS SNI; the Service label `xdatabase-proxy-routing: username|sni|all` decides, defaults depend on the database type (see `docs/routing-strategies.md`)

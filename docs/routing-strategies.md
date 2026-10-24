@@ -71,6 +71,17 @@ The native protocol Hello packet carries database, user and password. The user i
 
 ## MongoDB and other TLS databases
 
+What works and what does not:
+
+| Client connection | Routed? |
+| --- | --- |
+| TLS with SNI (host name, not an IP address) | yes |
+| TLS without SNI (connecting by IP) | no, closed |
+| Plaintext, no TLS | no, closed |
+| Username in the login | not possible: MongoDB sends the user only after the server answered `hello` |
+
+The proxy does not decrypt the traffic, so the client talks TLS with the backend and sees the backend's certificate. For a self-signed or private-CA certificate the client must trust it or relax verification (for example `tlsAllowInvalidCertificates` or `tlsCAFile`). Nothing has to be installed on the proxy.
+
 Use SNI. Enable TLS on the backend and point a wildcard DNS name at the proxy:
 
 ```

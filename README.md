@@ -29,7 +29,9 @@ Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in
 
 One proxy instance serves one `DATABASE_TYPE`. Which routing strategy (username or SNI) may reach a route is chosen by the cluster administrator with the Service label `xdatabase-proxy-routing: username | sni | all`; without it each type has a default. Details: [Routing strategies](docs/routing-strategies.md).
 
-**MongoDB limits:** routing needs the client to use TLS and send the server name (SNI); plaintext connections or clients without SNI are closed. Routing by username is not possible, because MongoDB sends the user only after the server answered `hello`. The proxy passes TLS through without decrypting it, so the client sees the backend's certificate: it must trust it, or use options like `tlsAllowInvalidCertificates` for a self-signed one. No custom certificate is needed on the proxy.
+**TLS handling:** PostgreSQL, and username routing for Redis and ClickHouse, terminate TLS at the proxy. SNI routes default to passthrough (the backend terminates TLS and the client sees the backend's certificate) and can terminate at the proxy with `SNI_TLS_MODE=terminate` (the backend may then be plain TCP).
+
+**MongoDB limits:** routing needs the client to use TLS and send the server name (SNI); plaintext connections or clients without SNI are closed. Routing by username is not possible, because MongoDB sends the user only after the server answered `hello`. With passthrough the client must trust the backend's certificate (or use options like `tlsAllowInvalidCertificates` for a self-signed one); with `SNI_TLS_MODE=terminate` it sees the proxy's certificate.
 
 ## How it is built
 

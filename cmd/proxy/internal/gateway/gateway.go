@@ -44,9 +44,12 @@ type Handler struct {
 	Login Login
 	// TLS returns the configuration used to terminate client TLS for username
 	// routing. Nil means the proxy never terminates TLS.
-	TLS         func() *tls.Config
-	DialTimeout time.Duration
-	Log         *slog.Logger
+	TLS func() *tls.Config
+	// TerminateSNI makes SNI routes terminate TLS at the proxy (needs TLS)
+	// instead of passing the connection through to a TLS backend.
+	TerminateSNI bool
+	DialTimeout  time.Duration
+	Log          *slog.Logger
 }
 
 func (h *Handler) Handle(ctx context.Context, conn net.Conn) {
@@ -74,7 +77,12 @@ func (h *Handler) Handle(ctx context.Context, conn net.Conn) {
 			key := route.ParseHost(host)
 			addr, err := h.Resolver.Resolve(ctx, key, route.SNI)
 			if err == nil {
-				h.passthrough(ctx, client, addr, log.With("via", route.SNI, "deployment", key.Deployment, "pooled", key.Pooled))
+				log := log.With("via", route.SNI, "deployment", key.Deployment, "pooled", key.Pooled)
+				if h.TerminateSNI && h.TLS != nil {
+					h.terminate(ctx, client, addr, log)
+				} else {
+					h.passthrough(ctx, client, addr, log)
+				}
 				return
 			}
 			log.Debug("sni route unavailable", "host", host, "error", err)
@@ -127,6 +135,27 @@ func (h *Handler) Handle(ctx context.Context, conn net.Conn) {
 	conn.SetDeadline(time.Time{})
 	log.Debug("session started", "backend", addr)
 	proxy.Pipe(client, backend)
+}
+
+// terminate ends the client's TLS at the proxy (with the proxy's certificate)
+// and talks plain TCP to the backend. The route was chosen by the server name.
+func (h *Handler) terminate(ctx context.Context, client *bufConn, addr string, log *slog.Logger) {
+	tc := tls.Server(client, h.TLS())
+	if err := tc.Handshake(); err != nil {
+		log.Debug("tls handshake failed", "error", err)
+		return
+	}
+	rctx, cancel := context.WithTimeout(ctx, h.DialTimeout)
+	defer cancel()
+	backend, err := (&net.Dialer{}).DialContext(rctx, "tcp", addr)
+	if err != nil {
+		log.Error("dial failed", "backend", addr, "error", err)
+		return
+	}
+	defer backend.Close()
+	client.Conn.SetDeadline(time.Time{})
+	log.Debug("session started (tls terminated)", "backend", addr)
+	proxy.Pipe(&bufConn{Conn: tc, r: bufio.NewReader(tc)}, backend)
 }
 
 // passthrough forwards the buffered ClientHello and then all bytes unchanged.

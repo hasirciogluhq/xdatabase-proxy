@@ -165,6 +165,14 @@ test_mongodb() {
   check "pooled route (.pool host)" "1" "${ms[@]}" "db.runCommand({ping:1}).ok" --host m1.pool.mongo.example.com
   check "insert and read back" "e2e" "${ms[@]}" "db.t.insertOne({v:'e2e'}); db.t.findOne().v" --host m1.mongo.example.com
   check_fails "unknown deployment is refused" "Mongo" "${ms[@]}" "db.runCommand({ping:1}).ok" --host nope.mongo.example.com --serverSelectionTimeoutMS 2000
+
+  # SNI_TLS_MODE=terminate: the proxy presents its own certificate and talks plain TCP to a mongod without TLS
+  run_bg mongo-plain "$MONGO_IMAGE" "$MONGO_IMAGE" mongod --bind_ip_all || return 1
+  wait_for "plain mongod" mongo-plain docker exec mongo-plain mongosh --quiet --eval "db.runCommand({ping:1}).ok" || return 1
+  ALIASES=(--network-alias m2.mongo.example.com)
+  start_proxy proxy-mongo-term DATABASE_TYPE=mongodb SNI_TLS_MODE=terminate STATIC_BACKENDS=m2=mongo-plain:27017 PROXY_START_PORT=27017 || return 1
+  ALIASES=()
+  check "TLS terminated at the proxy, plain backend" "e2e-term" "${ms[@]}" "db.t.insertOne({v:'e2e-term'}); db.t.findOne().v" --host m2.mongo.example.com
 }
 
 test_clickhouse() {

@@ -14,6 +14,9 @@ type Config struct {
 	// DatabaseType selects the handler: postgresql (login based) or
 	// mongodb, redis, clickhouse, tls (SNI based passthrough).
 	DatabaseType string
+	// SNITerminate: for SNI routes the proxy terminates client TLS itself and
+	// talks plain TCP to the backend. Default is passthrough (the backend terminates).
+	SNITerminate bool
 	ProxyPort    string
 	// HealthPort serves /health and /ready.
 	HealthPort  string
@@ -72,10 +75,27 @@ func Load() (*Config, error) {
 	case "redis", "clickhouse":
 		// Username routing (proxy terminates TLS if the client uses it) and SNI passthrough.
 	case "mongodb", "tls":
-		// No username available before authentication: SNI passthrough only, the backend terminates TLS.
-		c.TLSEnabled = false
+		// No username is available before authentication, so only SNI routes them. The proxy needs
+		// a certificate only when it terminates TLS itself (SNI_TLS_MODE=terminate).
 	default:
 		return nil, fmt.Errorf("unsupported DATABASE_TYPE %q (postgresql, mongodb, redis, clickhouse, tls)", c.DatabaseType)
+	}
+
+	switch mode := strings.ToLower(env("SNI_TLS_MODE", "passthrough")); mode {
+	case "passthrough":
+		if c.DatabaseType == "mongodb" || c.DatabaseType == "tls" {
+			c.TLSEnabled = false
+		}
+	case "terminate":
+		c.SNITerminate = true
+		if !c.TLSEnabled {
+			return nil, fmt.Errorf("SNI_TLS_MODE=terminate needs TLS_ENABLED=true")
+		}
+		if c.DatabaseType == "postgresql" {
+			return nil, fmt.Errorf("SNI_TLS_MODE does not apply to postgresql, which always terminates TLS")
+		}
+	default:
+		return nil, fmt.Errorf("unknown SNI_TLS_MODE %q (passthrough, terminate)", mode)
 	}
 
 	c.Discovery = strings.ToLower(env("DISCOVERY_MODE", ""))

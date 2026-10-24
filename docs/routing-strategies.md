@@ -43,10 +43,30 @@ metadata:
 
 If several Services share a deployment, only those allowing the strategy used by the client are considered. With `STATIC_BACKENDS` every strategy is allowed.
 
+## TLS: terminate or pass through
+
+For SNI routes there are two ways to handle TLS. Choose per proxy instance with `SNI_TLS_MODE`.
+
+| SNI_TLS_MODE | What happens | Backend | Client sees |
+| --- | --- | --- | --- |
+| passthrough (default) | The proxy forwards the encrypted bytes untouched. It needs no certificate | Must speak TLS | The backend's certificate |
+| terminate | The proxy ends TLS with its own certificate (TLS_MODE, TLS_SECRET_NAME, auto self-signed, cert-manager) and talks plain TCP to the backend | Plain TCP is fine | The proxy's certificate |
+
+Username routing (PostgreSQL, Redis, ClickHouse) always terminates TLS at the proxy, because the login is inside the encrypted stream. PostgreSQL always terminates TLS.
+
+Summary per database:
+
+| Database | TLS terminated by proxy | TLS passthrough | Route by username | Route by SNI |
+| --- | --- | --- | --- | --- |
+| PostgreSQL | always | no | yes | only with the label |
+| Redis | for username routing, or SNI_TLS_MODE=terminate | default for SNI | yes | yes |
+| ClickHouse | for username routing, or SNI_TLS_MODE=terminate | default for SNI | yes | yes |
+| MongoDB, tls | SNI_TLS_MODE=terminate | default | no | yes |
+
 ## How a connection is decided
 
 1. The proxy looks at the first bytes. A TLS handshake starts with 0x16 0x03.
-2. TLS with a server name: if a route exists for that name and the label allows sni, the connection is passed through. The proxy never decrypts it and the backend terminates TLS, so the client must trust the backend certificate.
+2. TLS with a server name: if a route exists for that name and the label allows sni, the connection is passed through (default, the backend terminates TLS and the client must trust the backend certificate) or, with `SNI_TLS_MODE=terminate`, terminated at the proxy and sent to the backend as plain TCP.
 3. Otherwise, if the protocol can carry a login and the proxy has a certificate, the proxy terminates TLS itself, reads the login and routes by username. The hop to the backend is then plain TCP.
 4. Plaintext connections are routed by username. For protocols without username routing (MongoDB, tls) plaintext is refused.
 
@@ -80,7 +100,9 @@ What works and what does not:
 | Plaintext, no TLS | no, closed |
 | Username in the login | not possible: MongoDB sends the user only after the server answered `hello` |
 
-The proxy does not decrypt the traffic, so the client talks TLS with the backend and sees the backend's certificate. For a self-signed or private-CA certificate the client must trust it or relax verification (for example `tlsAllowInvalidCertificates` or `tlsCAFile`). Nothing has to be installed on the proxy.
+With passthrough the proxy does not decrypt the traffic, so the client talks TLS with the backend and sees the backend's certificate. For a self-signed or private-CA certificate the client must trust it or relax verification (for example `tlsAllowInvalidCertificates` or `tlsCAFile`). Nothing has to be installed on the proxy.
+
+With `SNI_TLS_MODE=terminate` the proxy presents its own certificate and the backend can run without TLS. Clients still need TLS with SNI; plaintext clients cannot be routed, because MongoDB has no username before authentication.
 
 Use SNI. Enable TLS on the backend and point a wildcard DNS name at the proxy:
 

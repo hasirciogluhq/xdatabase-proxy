@@ -116,11 +116,11 @@ func run(cfg *config.Config, log *slog.Logger) error {
 	case "postgresql":
 		h = &postgres.Handler{Resolver: resolver, TLS: getTLS, DialTimeout: cfg.DialTimeout, Log: log}
 	case "redis":
-		h = &gateway.Handler{Resolver: resolver, Login: protocol.Redis{}, TLS: getTLS, DialTimeout: cfg.DialTimeout, Log: log}
+		h = &gateway.Handler{Resolver: resolver, Login: protocol.Redis{}, TLS: getTLS, TerminateSNI: cfg.SNITerminate, DialTimeout: cfg.DialTimeout, Log: log}
 	case "clickhouse":
-		h = &gateway.Handler{Resolver: resolver, Login: protocol.ClickHouse{}, TLS: getTLS, DialTimeout: cfg.DialTimeout, Log: log}
+		h = &gateway.Handler{Resolver: resolver, Login: protocol.ClickHouse{}, TLS: getTLS, TerminateSNI: cfg.SNITerminate, DialTimeout: cfg.DialTimeout, Log: log}
 	default: // mongodb, tls
-		h = &gateway.Handler{Resolver: resolver, DialTimeout: cfg.DialTimeout, Log: log}
+		h = &gateway.Handler{Resolver: resolver, TLS: getTLS, TerminateSNI: cfg.SNITerminate, DialTimeout: cfg.DialTimeout, Log: log}
 	}
 
 	ln, err := net.Listen("tcp", ":"+cfg.ProxyPort)

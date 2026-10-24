@@ -46,6 +46,8 @@ E2E_ONLY="postgres redis" scripts/e2e.sh        # a subset
 E2E_PG_IMAGE=postgres:18 E2E_REDIS_IMAGE=redis:latest E2E_PROXY_IMAGE=ubuntu:22.04 scripts/e2e.sh   # reuse local images, no pulls
 ```
 
+Local results (Docker on macOS arm64, amd64 images under emulation): PostgreSQL 18 9/9, Redis 8/8, ClickHouse 5/5, MongoDB 8 4/4 checks passed, plus unit tests with the race detector and govulncheck.
+
 Image variables: `E2E_PROXY_IMAGE`, `E2E_PG_IMAGE` (17 or newer for direct TLS), `E2E_REDIS_IMAGE`, `E2E_CH_IMAGE`, `E2E_MONGO_IMAGE`. Everything is removed at the end, also on failure. CI runs the same script as a matrix job per database on every push.
 
 ## CI

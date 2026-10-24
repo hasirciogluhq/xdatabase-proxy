@@ -67,3 +67,41 @@ func TestDefaultsAndValidation(t *testing.T) {
 		t.Error("unknown mode should fail")
 	}
 }
+
+func TestSNITLSMode(t *testing.T) {
+	for _, c := range []struct {
+		db, mode string
+		tls      string
+		wantTLS  bool
+		term     bool
+		wantErr  bool
+	}{
+		{"mongodb", "", "", false, false, false},              // passthrough: no certificate needed
+		{"mongodb", "terminate", "", true, true, false},       // proxy terminates TLS
+		{"mongodb", "terminate", "false", false, false, true}, // terminate needs TLS
+		{"redis", "terminate", "", true, true, false},
+		{"redis", "", "", true, false, false},
+		{"postgresql", "terminate", "", false, false, true}, // always terminates, setting does not apply
+		{"mongodb", "bogus", "", false, false, true},
+	} {
+		t.Setenv("DATABASE_TYPE", c.db)
+		t.Setenv("SNI_TLS_MODE", c.mode)
+		t.Setenv("TLS_ENABLED", c.tls)
+		t.Setenv("STATIC_BACKENDS", "a=b:1")
+		t.Setenv("TLS_MODE", "memory")
+		cfg, err := Load()
+		if c.wantErr {
+			if err == nil {
+				t.Errorf("%+v: expected error", c)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%+v: %v", c, err)
+			continue
+		}
+		if cfg.TLSEnabled != c.wantTLS || cfg.SNITerminate != c.term {
+			t.Errorf("%+v: got tls=%v terminate=%v", c, cfg.TLSEnabled, cfg.SNITerminate)
+		}
+	}
+}

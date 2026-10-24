@@ -285,3 +285,28 @@ func TestClickHouseUsernamePlain(t *testing.T) {
 	}
 	echoes(t, c)
 }
+
+// SNI route with TLS terminated at the proxy: the client sees the proxy's certificate and the backend gets plain TCP.
+func TestSNITerminateTalksPlainToBackend(t *testing.T) {
+	be, got := captureBackend(t)
+	addr := start(t, &Handler{Resolver: discovery.Static{"db1": be}, TLS: serverTLS(t), TerminateSNI: true})
+	c, err := tls.Dial("tcp", addr, &tls.Config{ServerName: "db1.example.com", InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.Write([]byte("hello"))
+	if s := firstBytes(t, got); s != "hello" {
+		t.Fatalf("backend saw %q, want plaintext", s)
+	}
+	echoes(t, c)
+}
+
+func TestSNITerminateUnknownHostIsClosed(t *testing.T) {
+	be, _ := captureBackend(t)
+	addr := start(t, &Handler{Resolver: discovery.Static{"db1": be}, TLS: serverTLS(t), TerminateSNI: true})
+	if c, err := tls.Dial("tcp", addr, &tls.Config{ServerName: "nope.example.com", InsecureSkipVerify: true}); err == nil {
+		c.Close()
+		t.Fatal("handshake should fail for an unknown deployment")
+	}
+}

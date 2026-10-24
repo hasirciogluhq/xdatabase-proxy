@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - 2026-10-24
 
 ### Added
+- `SNI_TLS_MODE=passthrough|terminate`: SNI routes can terminate TLS at the proxy (backend may be plain TCP) instead of passing it through; documented per database with MongoDB limits (TLS and SNI required, no username routing)
 - `scripts/e2e.sh`: end-to-end tests against real PostgreSQL, Redis, ClickHouse and MongoDB in Docker, using their own CLIs in client containers; CI runs it as a matrix job per database
 - Routing strategies: every route can be reached by username and/or TLS SNI; the Service label `xdatabase-proxy-routing: username|sni|all` decides, defaults depend on the database type (see `docs/routing-strategies.md`)
 - Username routing for Redis (`AUTH` / `HELLO … AUTH`) and ClickHouse (native Hello packet), with the routing suffix removed before forwarding

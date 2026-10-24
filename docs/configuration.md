@@ -34,6 +34,7 @@ All settings are environment variables. Invalid values stop the process at start
 
 | Variable | Default | Description |
 | --- | --- | --- |
+| SNI_TLS_MODE | passthrough | passthrough or terminate. How SNI routes handle TLS for redis, clickhouse, mongodb and tls: pass the encrypted bytes through (backend terminates) or terminate at the proxy and use plain TCP to the backend. Terminate needs TLS_ENABLED=true. Not applicable to postgresql |
 | TLS_ENABLED | true | Offer TLS to clients |
 | TLS_MODE | automatic | file, kubernetes or memory. Automatic: file if TLS_CERT_FILE is set, kubernetes if TLS_SECRET_NAME is set, else memory |
 | TLS_CERT_FILE, TLS_KEY_FILE | empty | Paths for file mode |

@@ -66,6 +66,9 @@ func Load() (*Config, error) {
 	c.DatabaseType = strings.ToLower(env("DATABASE_TYPE", "postgresql"))
 	switch c.DatabaseType {
 	case "postgresql":
+	case "cockroachdb", "yugabytedb", "timescaledb", "citus", "greenplum", "questdb", "cratedb":
+		// Same wire protocol; Services keep the label xdatabase-proxy-database-type: postgresql.
+		c.DatabaseType = "postgresql"
 	case "mongodb", "redis", "clickhouse", "tls":
 		// Routed by TLS SNI and passed through; the backend terminates TLS.
 		c.TLSEnabled = false

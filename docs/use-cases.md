@@ -24,6 +24,14 @@ Expose the proxy and keep the databases private. Two options:
 - Deployment with NodePort: clients use any node IP on port 30432. Put a cloud load balancer in front for availability.
 - DaemonSet with hostPort: every node serves port 5432. Point DNS or an external load balancer at the nodes. No kube-proxy hop, and the client address is preserved.
 
+## PostgreSQL-compatible databases
+
+CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB and CrateDB speak the PostgreSQL protocol. Set `DATABASE_TYPE` to the product name (or postgresql) and label their Services as usual. Startup options such as `--cluster=...` are forwarded unchanged.
+
+## MongoDB, Redis and ClickHouse
+
+Use SNI routing, see SNI routing. Run one proxy instance per database type.
+
 ## Databases on VMs
 
 Run the container or binary on a VM with static routing:

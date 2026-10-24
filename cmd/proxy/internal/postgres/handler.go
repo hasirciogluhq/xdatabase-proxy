@@ -3,6 +3,7 @@
 package postgres
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/sni"
 	"github.com/hasirciogluhq/xdatabase-proxy/pkg/proxy"
 	"github.com/jackc/pgx/v5/pgproto3"
 )
@@ -38,7 +40,7 @@ func (h *Handler) Handle(ctx context.Context, client net.Conn) {
 	log := h.Log.With("remote", client.RemoteAddr().String())
 
 	client.SetDeadline(time.Now().Add(startupTimeout))
-	client, st, err := h.startup(client)
+	client, st, serverName, err := h.startup(client)
 	if err != nil {
 		log.Debug("startup failed", "error", err)
 		return
@@ -46,6 +48,10 @@ func (h *Handler) Handle(ctx context.Context, client net.Conn) {
 	client.SetDeadline(time.Time{})
 
 	name, deployment, pooled := ParseUser(st.Parameters["user"])
+	if deployment == "" && serverName != "" {
+		// No deployment in the login: fall back to the TLS server name (db1[.pool].example.com).
+		deployment, pooled = sni.ParseHost(serverName)
+	}
 	log = log.With("deployment", deployment, "pooled", pooled)
 
 	rctx, cancel := context.WithTimeout(ctx, h.DialTimeout)
@@ -81,45 +87,73 @@ func (h *Handler) Handle(ctx context.Context, client net.Conn) {
 	proxy.Pipe(client, backend)
 }
 
-// startup negotiates SSL/GSS requests and returns the StartupMessage.
-func (h *Handler) startup(conn net.Conn) (net.Conn, *pgproto3.StartupMessage, error) {
+// bufConn replays bytes peeked from the connection.
+type bufConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c *bufConn) Read(p []byte) (int, error) { return c.r.Read(p) }
+
+// startup negotiates SSL/GSS requests (and PostgreSQL 17 direct TLS) and
+// returns the StartupMessage plus the TLS server name, if any.
+func (h *Handler) startup(raw net.Conn) (conn net.Conn, st *pgproto3.StartupMessage, serverName string, err error) {
+	var cfg *tls.Config
+	if h.TLS != nil {
+		cfg = h.TLS()
+	}
+	br := bufio.NewReader(raw)
+	conn = &bufConn{raw, br}
 	encrypted := false
+
+	// A TLS record header (0x16) as first byte is a direct TLS connection (sslnegotiation=direct).
+	if first, perr := br.Peek(1); perr != nil {
+		return nil, nil, "", perr
+	} else if first[0] == 0x16 {
+		if cfg == nil {
+			return nil, nil, "", errors.New("direct TLS requested but TLS is disabled")
+		}
+		direct := cfg.Clone()
+		direct.NextProtos = []string{"postgresql"}
+		tc := tls.Server(conn, direct)
+		if err := tc.Handshake(); err != nil {
+			return nil, nil, "", fmt.Errorf("tls handshake: %w", err)
+		}
+		conn, encrypted, serverName = tc, true, tc.ConnectionState().ServerName
+	}
+
 	for range 4 {
 		msg, err := pgproto3.NewBackend(conn, conn).ReceiveStartupMessage()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, "", err
 		}
 		switch m := msg.(type) {
 		case *pgproto3.SSLRequest:
-			var cfg *tls.Config
-			if h.TLS != nil {
-				cfg = h.TLS()
-			}
 			if encrypted || cfg == nil {
 				if _, err := conn.Write([]byte{'N'}); err != nil {
-					return nil, nil, err
+					return nil, nil, "", err
 				}
 				continue
 			}
 			if _, err := conn.Write([]byte{'S'}); err != nil {
-				return nil, nil, err
+				return nil, nil, "", err
 			}
 			tc := tls.Server(conn, cfg)
 			if err := tc.Handshake(); err != nil {
-				return nil, nil, fmt.Errorf("tls handshake: %w", err)
+				return nil, nil, "", fmt.Errorf("tls handshake: %w", err)
 			}
-			conn, encrypted = tc, true
+			conn, encrypted, serverName = tc, true, tc.ConnectionState().ServerName
 		case *pgproto3.GSSEncRequest:
 			if _, err := conn.Write([]byte{'N'}); err != nil {
-				return nil, nil, err
+				return nil, nil, "", err
 			}
 		case *pgproto3.StartupMessage:
-			return conn, m, nil
+			return conn, m, serverName, nil
 		default:
-			return nil, nil, fmt.Errorf("unsupported startup request %T", msg)
+			return nil, nil, "", fmt.Errorf("unsupported startup request %T", msg)
 		}
 	}
-	return nil, nil, errors.New("too many negotiation requests")
+	return nil, nil, "", errors.New("too many negotiation requests")
 }
 
 func writeError(w io.Writer, msg string) {

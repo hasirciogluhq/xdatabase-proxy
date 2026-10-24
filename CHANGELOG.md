@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- PostgreSQL: routing by TLS server name when the login has no deployment, and PostgreSQL 17 direct TLS (`sslnegotiation=direct`)
+- `DATABASE_TYPE` accepts `cockroachdb`, `yugabytedb`, `timescaledb`, `citus`, `greenplum`, `questdb`, `cratedb` (PostgreSQL handler); tests cover forwarding of extra startup parameters
 - SNI passthrough routing for MongoDB, Redis, ClickHouse and any TLS-first protocol (`DATABASE_TYPE=mongodb|redis|clickhouse|tls`), see `docs/sni-routing.md`
 - Documentation site in `docs/` (configuration, routing, discovery, TLS, deployment targets, use cases, security, operations, development), published with GitHub Pages by `pages.yaml`
 - `AGENTS.md` project guide for AI coding agents

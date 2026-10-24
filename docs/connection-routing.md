@@ -21,6 +21,17 @@ postgresql://USER.DEPLOYMENT[.pool]@PROXY_HOST:PORT/DATABASE
 
 The last dot separated part is the deployment, unless it is the word pool, in which case the part before it is the deployment. User names may contain dots.
 
+## Routing by TLS server name (SNI)
+
+When the login has no deployment part and the client connected with TLS, the proxy uses the TLS server name instead:
+
+| Client connects to host | Login | Deployment | Pooled |
+| --- | --- | --- | --- |
+| db1.example.com | alice | db1 | no |
+| db1.pool.example.com | alice | db1 | yes |
+
+The login always wins when it contains a deployment. This works after the normal SSLRequest upgrade and also for PostgreSQL 17 direct TLS (`sslnegotiation=direct`, ALPN `postgresql`), which the proxy detects by the first byte of the connection. Direct TLS needs TLS enabled on the proxy. A wildcard DNS record such as `*.example.com` pointing at the proxy is enough.
+
 ## Database name
 
 If the client sends no database, or the database equals the full login, the proxy sends postgres. Any other database name is forwarded as is.
@@ -44,3 +55,4 @@ Details are in the proxy log, not in the client message.
 
 - Query cancellation from psql or drivers (CancelRequest) is not routed, because it carries only a process id and key. Cancel by connecting to the backend directly or with pg_cancel_backend.
 - Protocol 3.0 and 3.2 are accepted.
+- Every other startup parameter (options, application_name, client_encoding, ...) is forwarded unchanged, which PostgreSQL-compatible databases rely on.

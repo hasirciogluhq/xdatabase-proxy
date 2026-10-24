@@ -10,6 +10,7 @@ postgresql://user.<deployment>[.pool]@proxy:5432/db
 
 - `user.db-prod` → service of deployment `db-prod` (direct)
 - `user.db-prod.pool` → the pooled service (pgbouncer, odyssey, …) of the same deployment
+- Plain `user` with TLS host `db-prod.pool.example.com` → the same pooled service, chosen by SNI (also works with PostgreSQL 17 `sslnegotiation=direct`)
 
 The proxy strips the routing suffix before forwarding, so the backend sees plain `user`. If `database` is empty or equals the full login (psql's default), it becomes `postgres`.
 
@@ -20,7 +21,7 @@ Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in
 | Database | `DATABASE_TYPE` | Routing | Status |
 | --- | --- | --- | --- |
 | PostgreSQL | `postgresql` | Login `user.deployment[.pool]`, TLS terminated by the proxy | ✅ Supported |
-| PostgreSQL-compatible (CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB, CrateDB, Aurora/AlloyDB) | `postgresql` | Same | 🧪 Should work, untested |
+| PostgreSQL-compatible: CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB, CrateDB (Aurora/AlloyDB PostgreSQL need nothing special) | `postgresql` or the product name (`cockroachdb`, `yugabytedb`, `timescaledb`, `citus`, `greenplum`, `questdb`, `cratedb`) | Same as PostgreSQL | ✅ Same code path. Wire handling is covered by tests; not yet run against the real products |
 | MongoDB, Redis, ClickHouse (secure native port), any TLS-first protocol | `mongodb`, `redis`, `clickhouse`, `tls` | TLS SNI `deployment[.pool].your-domain`, TLS passed through to the backend | ✅ Supported, tested with a generic TLS backend |
 | MySQL / MariaDB | – | The server speaks first and the password scramble is bound to the backend | 📋 Planned, hardest |
 

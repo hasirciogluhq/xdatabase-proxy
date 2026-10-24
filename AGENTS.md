@@ -4,7 +4,7 @@ Guide for AI coding agents working on this repository. Read this first. It is sh
 
 PROJECT
 
-XDatabase Proxy is a PostgreSQL connection router written in Go. A client logs in as user.deployment or user.deployment.pool. The proxy reads that name, finds the backend address, terminates TLS, rewrites the startup message to the plain user name and then copies bytes both ways. It does not parse SQL and does not authenticate users. Login based routing supports only PostgreSQL. Other TLS-first databases use SNI routing. MySQL is not supported.
+XDatabase Proxy is a PostgreSQL connection router written in Go. A client logs in as user.deployment or user.deployment.pool. The proxy reads that name, finds the backend address, terminates TLS, rewrites the startup message to the plain user name and then copies bytes both ways. It does not parse SQL and does not authenticate users. Login based routing supports only PostgreSQL. Other TLS-first databases use SNI routing. MySQL is not supported. PostgreSQL-compatible products use the PostgreSQL handler.
 
 Module path: github.com/hasirciogluhq/xdatabase-proxy. The Go version is the one in go.mod.
 
@@ -63,6 +63,8 @@ Treat everything a client sends before login as hostile: bound sizes, set deadli
 Match the style of the surrounding code and keep comments short and useful.
 
 BEHAVIOUR TO PRESERVE
+
+PostgreSQL handler: if the login has no deployment, the TLS server name decides (db1.pool.example.com is db1 pooled). The login wins when both exist. Direct TLS (first byte 0x16, ALPN postgresql) is supported. DATABASE_TYPE names of PostgreSQL-compatible products map to postgresql.
 
 Last dot separated part of the user is the deployment, unless it is the word pool, then the part before it is. The proxy sends the plain user to the backend.
 If database is empty or equals the full login, the backend gets postgres.

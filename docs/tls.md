@@ -37,6 +37,10 @@ With cert-manager, create a Certificate whose secretName equals TLS_SECRET_NAME.
 
 Minimum protocol is TLS 1.2. Cipher suites follow the Go defaults.
 
+## Server name and direct TLS
+
+The proxy reads the server name (SNI) of the client's TLS handshake and can route by it, see Connection routing. It also accepts PostgreSQL 17 direct TLS connections (ALPN postgresql), so `sslnegotiation=direct` works.
+
 ## Disabling TLS
 
 TLS_ENABLED=false makes the proxy answer N to every SSLRequest. Clients with sslmode=require will refuse to connect. Only do this when TLS is handled elsewhere.

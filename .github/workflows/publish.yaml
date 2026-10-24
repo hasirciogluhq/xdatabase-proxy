@@ -2,7 +2,6 @@ name: Publish
 
 on:
   push:
-    branches: [main, development]
     tags: ["v*"]
 
 permissions:
@@ -11,15 +10,11 @@ permissions:
 jobs:
   # Full CI (tests, vulncheck, manifests, image scan, e2e) must pass before anything is published.
   # If it fails on a tag, nothing is released: fix, delete the tag and tag again.
-  # Branch pushes already run ci.yaml on their own, so only tags call it here.
   ci:
-    if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/ci.yaml
 
   image:
     needs: ci
-    # runs when ci passed (tags) or was skipped (branches), never when it failed
-    if: ${{ !cancelled() && needs.ci.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -27,8 +22,7 @@ jobs:
       id-token: write
       attestations: write
     env:
-      # development branch -> separate image; main and v* tags -> the release image
-      IMAGE: ghcr.io/${{ github.repository }}${{ github.ref == 'refs/heads/development' && '-development' || '' }}
+      IMAGE: ghcr.io/${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -43,7 +37,6 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
       - id: build
@@ -66,7 +59,6 @@ jobs:
           push-to-registry: true
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: image
     runs-on: ubuntu-latest
     permissions:

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-10-24
+
+### Changed
+- `LICENSE` appendix and `NOTICE` now carry the copyright year (2025-2026) and owner (XDatabase Proxy Contributors) instead of the empty Apache template placeholders
+
 ## [2.1.1] - 2026-10-24
 
 ### Changed

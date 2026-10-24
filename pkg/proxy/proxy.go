@@ -4,6 +4,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -39,19 +40,28 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 		slots = make(chan struct{}, s.MaxConns)
 	}
 
-	go func() { <-ctx.Done(); ln.Close() }()
+	stop := context.AfterFunc(ctx, func() { ln.Close() })
+	defer stop()
 
+	delay := time.Duration(0)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
 				return s.drain(&wg)
 			}
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				continue
+			if errors.Is(err, net.ErrClosed) {
+				return err
 			}
-			return err
+			// Temporary failures such as "too many open files" must not kill the proxy:
+			// back off and keep serving the connections that already exist.
+			if delay = min(max(delay*2, 5*time.Millisecond), time.Second); true {
+				s.Log.Warn("accept failed, retrying", "error", err, "delay", delay)
+				time.Sleep(delay)
+			}
+			continue
 		}
+		delay = 0
 		if slots != nil {
 			select {
 			case slots <- struct{}{}:

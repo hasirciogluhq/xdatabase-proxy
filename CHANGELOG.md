@@ -8,9 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `scripts/e2e.sh`: end-to-end tests against real PostgreSQL, Redis, ClickHouse and MongoDB in Docker, using their own CLIs in client containers; CI runs it as a matrix job per database
 - Routing strategies: every route can be reached by username and/or TLS SNI; the Service label `xdatabase-proxy-routing: username|sni|all` decides, defaults depend on the database type (see `docs/routing-strategies.md`)
 - Username routing for Redis (`AUTH` / `HELLO … AUTH`) and ClickHouse (native Hello packet), with the routing suffix removed before forwarding
-- Gateway handler: SNI passthrough first, otherwise TLS termination and username routing; real Redis end-to-end test in CI
+- Gateway handler: SNI passthrough first, otherwise TLS termination and username routing
 - PostgreSQL: routing by TLS server name when the login has no deployment, and PostgreSQL 17 direct TLS (`sslnegotiation=direct`)
 - `DATABASE_TYPE` accepts `cockroachdb`, `yugabytedb`, `timescaledb`, `citus`, `greenplum`, `questdb`, `cratedb` (PostgreSQL handler); tests cover forwarding of extra startup parameters
 - `DATABASE_TYPE=mongodb|redis|clickhouse|tls` with SNI passthrough for MongoDB and any TLS-first protocol
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Graceful shutdown, GSSENC negotiation, `-healthcheck` flag, hot certificate reload
 - CI: race tests, govulncheck, manifest rendering, image scan, end-to-end psql test; Dependabot
 - Release pipeline: tag runs the full CI first, then multi-arch image with SBOM and provenance, then the GitHub release
+- GitHub Actions moved to the latest major versions
 - Trivy runs as a container instead of a third-party action, with a cached database
 - CI is faster: jobs run in parallel (test, vulncheck, manifests, image, e2e), govulncheck is installed instead of rebuilt, images are packaged from binaries built on the runner (`--build-arg SRC=prebuilt`), QEMU and Docker layer cache uploads are gone, Dockerfile uses BuildKit cache mounts
 - Publish calls the full CI only for tags, so branch pushes no longer run CI twice

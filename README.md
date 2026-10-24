@@ -22,7 +22,7 @@ Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in
 | --- | --- | --- | --- |
 | PostgreSQL | `postgresql` | Login `user.deployment[.pool]`, TLS terminated by the proxy | ✅ Supported |
 | PostgreSQL-compatible: CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB, CrateDB (Aurora/AlloyDB PostgreSQL need nothing special) | `postgresql` or the product name (`cockroachdb`, `yugabytedb`, `timescaledb`, `citus`, `greenplum`, `questdb`, `cratedb`) | Same as PostgreSQL | ✅ Same code path. Wire handling is covered by tests; not yet run against the real products |
-| Redis | `redis` | Login `user.deployment[.pool]` in `AUTH`/`HELLO … AUTH`, and/or TLS SNI passthrough | ✅ Supported, tested with in-process fakes; CI runs real Redis |
+| Redis | `redis` | Login `user.deployment[.pool]` in `AUTH`/`HELLO … AUTH`, and/or TLS SNI passthrough | ✅ Supported, e2e-tested with real Redis |
 | ClickHouse (native protocol) | `clickhouse` | Login in the Hello packet, and/or TLS SNI passthrough | ✅ Supported, tested with in-process fakes only |
 | MongoDB, any TLS-first protocol | `mongodb`, `tls` | TLS SNI `deployment[.pool].your-domain`, passed through to the backend | ✅ Supported, tested with a generic TLS backend |
 | MySQL / MariaDB | – | The server speaks first and the password scramble is bound to the backend | 📋 Planned, hardest |

@@ -22,7 +22,7 @@ cmd/proxy/internal/health serves health and ready.
 pkg/proxy is a generic TCP server with a connection limit, graceful shutdown and a pipe helper.
 pkg/tlsutil creates and inspects self-signed certificates.
 kubernetes holds Kustomize bases: base, production/nodeport, production/daemonset-hostport, development, test.
-scripts holds dev-run.sh, local-deploy.sh, create-release.sh.
+scripts holds dev-run.sh, local-deploy.sh, create-release.sh and e2e.sh (real databases in Docker, queried with their own CLIs).
 docs is the documentation site, built with Jekyll and just-the-docs.
 static/images holds banners and a screenshot.
 .github/workflows holds ci.yaml, publish.yaml and pages.yaml.
@@ -52,6 +52,7 @@ Run all tests with the race detector: go test -race ./...
 Format check: gofmt -l .
 Static checks: go vet ./...
 Run locally: scripts/dev-run.sh
+End-to-end tests with real databases in Docker: scripts/e2e.sh (E2E_ONLY selects postgres, redis, clickhouse, mongodb; see docs/development.md for image variables)
 Render a manifest variant: kubectl kustomize kubernetes/production/nodeport
 Vulnerability scan: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
@@ -77,7 +78,7 @@ Configuration is environment variables only. Removed variables are listed in doc
 
 TESTING
 
-Every behaviour change needs a test. Handler tests use real local sockets and a fake backend. Discovery tests use the client-go fake clientset. Do not add tests that need external services, except the end-to-end job in ci.yaml.
+Every behaviour change needs a test. Handler tests use real local sockets and a fake backend. Discovery tests use the client-go fake clientset. Do not add tests that need external services to go test. Real database tests live in scripts/e2e.sh and run in the e2e matrix job of ci.yaml. Add a check there when routing behaviour changes. Use the latest major versions of GitHub Actions.
 
 WORKFLOW RULES FOR EVERY CHANGE
 

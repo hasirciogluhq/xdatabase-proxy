@@ -36,9 +36,21 @@ The Go version is set in go.mod. CI and the Dockerfile follow it.
 
 Add a test for every behaviour change. Handler tests use real sockets and a fake backend, so no external services are needed.
 
+## End-to-end tests with real databases
+
+`scripts/e2e.sh` needs only Docker and Go. It builds the proxy for the Docker host, creates a throw-away network and, per database, starts the server, the proxy (the binary mounted into a tiny container) and runs the database's own CLI in a client container: psql, redis-cli, clickhouse-client, mongosh. It checks routing, user rewriting, TLS, pooled routes and error cases.
+
+```bash
+scripts/e2e.sh                                  # all databases
+E2E_ONLY="postgres redis" scripts/e2e.sh        # a subset
+E2E_PG_IMAGE=postgres:18 E2E_REDIS_IMAGE=redis:latest E2E_PROXY_IMAGE=ubuntu:22.04 scripts/e2e.sh   # reuse local images, no pulls
+```
+
+Image variables: `E2E_PROXY_IMAGE`, `E2E_PG_IMAGE` (17 or newer for direct TLS), `E2E_REDIS_IMAGE`, `E2E_CH_IMAGE`, `E2E_MONGO_IMAGE`. Everything is removed at the end, also on failure. CI runs the same script as a matrix job per database on every push.
+
 ## CI
 
-ci.yaml runs on every push and pull request, with these jobs in parallel: test (gofmt, go mod verify, vet, race tests with coverage), vulncheck (govulncheck), manifests (Kustomize rendering of all variants), image (binary built on the runner, packaged with `--build-arg SRC=prebuilt`, Trivy scan with cached database) and e2e (psql against a real PostgreSQL service). `docker build .` without arguments still compiles inside Docker and is what users run locally; CI does not exercise that path.
+ci.yaml runs on every push and pull request, with these jobs in parallel: test (gofmt, go mod verify, vet, race tests with coverage), vulncheck (govulncheck), manifests (Kustomize rendering of all variants), image (binary built on the runner, packaged with `--build-arg SRC=prebuilt`, Trivy scan with cached database) and e2e (scripts/e2e.sh, one parallel job per database: PostgreSQL, Redis, ClickHouse, MongoDB). `docker build .` without arguments still compiles inside Docker and is what users run locally; CI does not exercise that path.
 
 ## Release
 

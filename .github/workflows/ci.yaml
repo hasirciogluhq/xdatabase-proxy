@@ -19,8 +19,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Format
@@ -32,8 +32,8 @@ jobs:
   vulncheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       # go install keeps the compiled tool in the build cache; go run @latest rebuilt it every time.
@@ -43,7 +43,7 @@ jobs:
   manifests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Render kustomizations
         run: |
           for d in kubernetes/production/* kubernetes/development; do
@@ -53,15 +53,15 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Build binary
         run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o bin/linux-amd64/xdatabase-proxy ./cmd/proxy
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           load: true
@@ -69,7 +69,7 @@ jobs:
           build-args: SRC=prebuilt
           tags: xdatabase-proxy:ci
       - name: Cache Trivy database
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .trivy
           key: trivy-db-${{ github.run_id }}
@@ -80,50 +80,16 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/.trivy:/root/.cache/trivy" \
             aquasec/trivy:latest image --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 xdatabase-proxy:ci
 
+  # Real databases in Docker, queried with their own CLIs through the proxy (see scripts/e2e.sh).
   e2e:
-    # Real PostgreSQL behind the proxy: connect through "user.deployment".
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env: {POSTGRES_PASSWORD: secret}
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 10
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [postgres, redis, clickhouse, mongodb]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Run proxy and query through it
-        env:
-          PGPASSWORD: secret
-        run: |
-          go build -o proxy ./cmd/proxy
-          STATIC_BACKENDS=e2e=127.0.0.1:5432 PROXY_START_PORT=6432 ./proxy &
-          for i in $(seq 20); do curl -fs localhost:8080/ready && break; sleep 0.5; done
-          for mode in require disable; do
-            psql "host=127.0.0.1 port=6432 user=postgres.e2e dbname=postgres sslmode=$mode" -tAc "select 'ok-$mode'" | grep "ok-$mode"
-          done
-
-  e2e-redis:
-    # Real Redis behind the proxy: username routing ("default.cache1" is rewritten to "default").
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: Start Redis and the proxy
-        run: |
-          sudo apt-get install -y --no-install-recommends redis-tools
-          docker run -d --name redis -p 6379:6379 redis:7-alpine redis-server --requirepass secret
-          go build -o proxy ./cmd/proxy
-          DATABASE_TYPE=redis STATIC_BACKENDS=cache1=127.0.0.1:6379 PROXY_START_PORT=6433 HEALTH_SERVER_PORT=8081 ./proxy &
-          for i in $(seq 20); do curl -fs localhost:8081/ready && break; sleep 0.5; done
-          for i in $(seq 20); do redis-cli -p 6379 -a secret --no-auth-warning ping && break; sleep 0.5; done
-      - name: Query through the proxy
-        run: |
-          redis-cli -p 6433 --user default.cache1 --pass secret --no-auth-warning set k v | grep OK
-          redis-cli -p 6433 --user default.cache1 --pass secret --no-auth-warning get k | grep '^v$'
-          redis-cli -p 6433 --tls --insecure --user default.cache1 --pass secret --no-auth-warning ping | grep PONG
+      - run: E2E_ONLY=${{ matrix.db }} scripts/e2e.sh

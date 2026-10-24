@@ -16,7 +16,7 @@ All settings are environment variables. Invalid values stop the process at start
 | MAX_CONNECTIONS | 10000 | Concurrent client connections. 0 means unlimited |
 | DIAL_TIMEOUT_SECONDS | 5 | Time allowed for resolving and dialing the backend |
 | DEBUG | false | Debug level logs |
-| DATABASE_TYPE | postgresql | Only postgresql is accepted |
+| DATABASE_TYPE | postgresql | postgresql, or mongodb, redis, clickhouse, tls for SNI passthrough. TLS_* settings are ignored for the SNI types |
 
 ## Discovery
 
@@ -46,7 +46,7 @@ All settings are environment variables. Invalid values stop the process at start
 - file mode needs both TLS_CERT_FILE and TLS_KEY_FILE.
 - kubernetes mode needs TLS_SECRET_NAME.
 - Kubernetes access is needed when discovery is kubernetes or TLS mode is kubernetes.
-- Unknown values for DISCOVERY_MODE, TLS_MODE or DATABASE_TYPE are errors.
+- Unknown values for DATABASE_TYPE, DISCOVERY_MODE, TLS_MODE or DATABASE_TYPE are errors.
 
 ## Removed variables
 

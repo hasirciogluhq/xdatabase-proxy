@@ -10,8 +10,11 @@ import (
 )
 
 type Config struct {
-	Debug     bool
-	ProxyPort string
+	Debug bool
+	// DatabaseType selects the handler: postgresql (login based) or
+	// mongodb, redis, clickhouse, tls (SNI based passthrough).
+	DatabaseType string
+	ProxyPort    string
 	// HealthPort serves /health and /ready.
 	HealthPort  string
 	MaxConns    int
@@ -60,8 +63,14 @@ func Load() (*Config, error) {
 		TLSRenewalWindow: time.Duration(intEnv("TLS_RENEWAL_THRESHOLD_DAYS", 30)) * 24 * time.Hour,
 	}
 
-	if t := env("DATABASE_TYPE", "postgresql"); t != "postgresql" {
-		return nil, fmt.Errorf("unsupported DATABASE_TYPE %q (supported: postgresql)", t)
+	c.DatabaseType = strings.ToLower(env("DATABASE_TYPE", "postgresql"))
+	switch c.DatabaseType {
+	case "postgresql":
+	case "mongodb", "redis", "clickhouse", "tls":
+		// Routed by TLS SNI and passed through; the backend terminates TLS.
+		c.TLSEnabled = false
+	default:
+		return nil, fmt.Errorf("unsupported DATABASE_TYPE %q (postgresql, mongodb, redis, clickhouse, tls)", c.DatabaseType)
 	}
 
 	c.Discovery = strings.ToLower(env("DISCOVERY_MODE", ""))

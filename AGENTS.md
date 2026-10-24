@@ -4,7 +4,7 @@ Guide for AI coding agents working on this repository. Read this first. It is sh
 
 PROJECT
 
-XDatabase Proxy is a PostgreSQL connection router written in Go. A client logs in as user.deployment or user.deployment.pool. The proxy reads that name, finds the backend address, terminates TLS, rewrites the startup message to the plain user name and then copies bytes both ways. It does not parse SQL and does not authenticate users. Only PostgreSQL is supported.
+XDatabase Proxy is a PostgreSQL connection router written in Go. A client logs in as user.deployment or user.deployment.pool. The proxy reads that name, finds the backend address, terminates TLS, rewrites the startup message to the plain user name and then copies bytes both ways. It does not parse SQL and does not authenticate users. Login based routing supports only PostgreSQL. Other TLS-first databases use SNI routing. MySQL is not supported.
 
 Module path: github.com/hasirciogluhq/xdatabase-proxy. The Go version is the one in go.mod.
 
@@ -13,6 +13,7 @@ LAYOUT
 cmd/proxy/main.go wires everything, handles signals, builds the Kubernetes client.
 cmd/proxy/internal/config reads environment variables and validates them.
 cmd/proxy/internal/postgres is the connection handler: startup negotiation, user parsing, dial, pipe.
+cmd/proxy/internal/sni routes TLS connections of other databases by server name and passes bytes through.
 cmd/proxy/internal/discovery has the static table and the Kubernetes informer resolver.
 cmd/proxy/internal/tlsstore stores certificates in a file, a Kubernetes Secret or memory.
 cmd/proxy/internal/health serves health and ready.
@@ -29,6 +30,7 @@ Rule: pkg contains code that knows nothing about this product. cmd/proxy/interna
 WHERE TO READ MORE
 
 Overview: docs/index.md
+SNI routing for non PostgreSQL databases: docs/sni-routing.md
 How a connection flows: docs/architecture.md
 Login format and errors: docs/connection-routing.md
 Every environment variable: docs/configuration.md

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- SNI passthrough routing for MongoDB, Redis, ClickHouse and any TLS-first protocol (`DATABASE_TYPE=mongodb|redis|clickhouse|tls`), see `docs/sni-routing.md`
 - Documentation site in `docs/` (configuration, routing, discovery, TLS, deployment targets, use cases, security, operations, development), published with GitHub Pages by `pages.yaml`
 - `AGENTS.md` project guide for AI coding agents
 - README lists supported databases and a roadmap (PostgreSQL-compatible, TLS SNI routing, MySQL)

@@ -17,18 +17,16 @@ Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in
 
 ## Supported databases
 
-| Database | Status | Notes |
-| --- | --- | --- |
-| PostgreSQL | ✅ Supported | Routing by `user.deployment[.pool]` |
-| PostgreSQL-compatible (CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB, CrateDB, Aurora/AlloyDB PostgreSQL) | 🧪 Should work, untested | Same wire protocol, use `DATABASE_TYPE=postgresql` |
-| MongoDB, Redis, ClickHouse (native) | 📋 Planned | Needs TLS SNI routing, since their login arrives after the connection is open |
-| MySQL / MariaDB | 📋 Planned, hardest | The server speaks first and the password scramble is bound to the backend |
+| Database | `DATABASE_TYPE` | Routing | Status |
+| --- | --- | --- | --- |
+| PostgreSQL | `postgresql` | Login `user.deployment[.pool]`, TLS terminated by the proxy | ✅ Supported |
+| PostgreSQL-compatible (CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB, CrateDB, Aurora/AlloyDB) | `postgresql` | Same | 🧪 Should work, untested |
+| MongoDB, Redis, ClickHouse (secure native port), any TLS-first protocol | `mongodb`, `redis`, `clickhouse`, `tls` | TLS SNI `deployment[.pool].your-domain`, TLS passed through to the backend | ✅ Supported, tested with a generic TLS backend |
+| MySQL / MariaDB | – | The server speaks first and the password scramble is bound to the backend | 📋 Planned, hardest |
 
-### Roadmap, easiest first
+One proxy instance serves one `DATABASE_TYPE`. Run one instance per type; Services are matched by the `xdatabase-proxy-database-type` label.
 
-1. **PostgreSQL-compatible databases**: no code needed, only test and document them.
-2. **TLS SNI routing** (`deployment.proxy.example.com`): one generic handler that reads the SNI from the TLS ClientHello and forwards bytes. It unlocks every TLS-capable protocol (MongoDB, Redis, ClickHouse, …) and also works for PostgreSQL. This is the best next step.
-3. **MySQL / MariaDB**: the proxy must answer the greeting itself and handle authentication, so it is a much larger change.
+**SNI example (MongoDB):** the backend has TLS enabled and clients connect to `db1.mongo.example.com` (DNS pointing at the proxy). `db1.pool.mongo.example.com` selects the pooled route. The client must send SNI, which every major driver does when TLS is on. The proxy never sees plaintext and needs no certificate.
 
 ## How it is built
 

@@ -18,6 +18,7 @@ import (
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/discovery"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/health"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/postgres"
+	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/sni"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/tlsstore"
 	"github.com/hasirciogluhq/xdatabase-proxy/pkg/proxy"
 	"k8s.io/client-go/kubernetes"
@@ -71,7 +72,7 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		}
 	}
 
-	var resolver postgres.Resolver
+	var resolver sni.Resolver
 	if cfg.Discovery == "static" {
 		r, err := discovery.NewStatic(cfg.StaticBackends)
 		if err != nil {
@@ -79,22 +80,28 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		}
 		resolver = r
 	} else {
-		r, err := discovery.NewKubernetes(ctx, kc, cfg.WatchNamespace, "postgresql", cfg.ClusterDomain)
+		r, err := discovery.NewKubernetes(ctx, kc, cfg.WatchNamespace, cfg.DatabaseType, cfg.ClusterDomain)
 		if err != nil {
 			return err
 		}
 		resolver = r
 	}
 
-	h := &postgres.Handler{Resolver: resolver, DialTimeout: cfg.DialTimeout, Log: log}
-	if cfg.TLSEnabled {
-		getTLS, err := tlsConfig(ctx, cfg, kc, log)
-		if err != nil {
-			return err
+	var h proxy.Handler
+	if cfg.DatabaseType == "postgresql" {
+		pg := &postgres.Handler{Resolver: resolver, DialTimeout: cfg.DialTimeout, Log: log}
+		if cfg.TLSEnabled {
+			getTLS, err := tlsConfig(ctx, cfg, kc, log)
+			if err != nil {
+				return err
+			}
+			pg.TLS = getTLS
+		} else {
+			log.Warn("TLS is disabled, client connections will not be encrypted")
 		}
-		h.TLS = getTLS
+		h = pg
 	} else {
-		log.Warn("TLS is disabled, client connections will not be encrypted")
+		h = &sni.Handler{Resolver: resolver, DialTimeout: cfg.DialTimeout, Log: log}
 	}
 
 	ln, err := net.Listen("tcp", ":"+cfg.ProxyPort)

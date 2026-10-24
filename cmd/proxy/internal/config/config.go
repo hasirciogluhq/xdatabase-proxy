@@ -69,8 +69,10 @@ func Load() (*Config, error) {
 	case "cockroachdb", "yugabytedb", "timescaledb", "citus", "greenplum", "questdb", "cratedb":
 		// Same wire protocol; Services keep the label xdatabase-proxy-database-type: postgresql.
 		c.DatabaseType = "postgresql"
-	case "mongodb", "redis", "clickhouse", "tls":
-		// Routed by TLS SNI and passed through; the backend terminates TLS.
+	case "redis", "clickhouse":
+		// Username routing (proxy terminates TLS if the client uses it) and SNI passthrough.
+	case "mongodb", "tls":
+		// No username available before authentication: SNI passthrough only, the backend terminates TLS.
 		c.TLSEnabled = false
 	default:
 		return nil, fmt.Errorf("unsupported DATABASE_TYPE %q (postgresql, mongodb, redis, clickhouse, tls)", c.DatabaseType)

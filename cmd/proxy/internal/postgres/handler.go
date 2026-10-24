@@ -11,26 +11,20 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"strings"
 	"time"
 
-	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/sni"
+	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/route"
 	"github.com/hasirciogluhq/xdatabase-proxy/pkg/proxy"
 	"github.com/jackc/pgx/v5/pgproto3"
 )
 
 const startupTimeout = 10 * time.Second
 
-// Resolver finds the backend address for a deployment.
-type Resolver interface {
-	Resolve(ctx context.Context, deployment string, pooled bool) (string, error)
-}
-
 // Handler implements proxy.Handler for PostgreSQL.
 type Handler struct {
 	// TLS is nil when TLS is disabled; SSLRequests are then declined.
 	TLS         func() *tls.Config
-	Resolver    Resolver
+	Resolver    route.Resolver
 	DialTimeout time.Duration
 	Log         *slog.Logger
 }
@@ -47,16 +41,18 @@ func (h *Handler) Handle(ctx context.Context, client net.Conn) {
 	}
 	client.SetDeadline(time.Time{})
 
-	name, deployment, pooled := ParseUser(st.Parameters["user"])
-	if deployment == "" && serverName != "" {
-		// No deployment in the login: fall back to the TLS server name (db1[.pool].example.com).
-		deployment, pooled = sni.ParseHost(serverName)
+	name, key := route.ParseLogin(st.Parameters["user"])
+	via := route.Username
+	if key.Deployment == "" && serverName != "" {
+		// No deployment in the login: use the TLS server name (db1[.pool].example.com).
+		// The resolver only accepts this when the Service label enables sni.
+		key, via = route.ParseHost(serverName), route.SNI
 	}
-	log = log.With("deployment", deployment, "pooled", pooled)
+	log = log.With("deployment", key.Deployment, "pooled", key.Pooled, "via", via)
 
 	rctx, cancel := context.WithTimeout(ctx, h.DialTimeout)
 	defer cancel()
-	addr, err := h.Resolver.Resolve(rctx, deployment, pooled)
+	addr, err := h.Resolver.Resolve(rctx, key, via)
 	if err != nil {
 		log.Warn("resolve failed", "error", err)
 		writeError(client, "no backend for this user; expected user.deployment[.pool]")
@@ -164,11 +160,6 @@ func writeError(w io.Writer, msg string) {
 // ParseUser splits "name.deployment[.pool]". Without a deployment part it
 // returns an empty deployment, which no route matches.
 func ParseUser(user string) (name, deployment string, pooled bool) {
-	parts := strings.Split(user, ".")
-	if n := len(parts); n >= 3 && parts[n-1] == "pool" {
-		return strings.Join(parts[:n-2], "."), parts[n-2], true
-	} else if n >= 2 && parts[n-1] != "pool" {
-		return strings.Join(parts[:n-1], "."), parts[n-1], false
-	}
-	return user, "", false
+	name, k := route.ParseLogin(user)
+	return name, k.Deployment, k.Pooled
 }

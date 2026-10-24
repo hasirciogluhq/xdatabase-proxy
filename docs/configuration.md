@@ -16,7 +16,7 @@ All settings are environment variables. Invalid values stop the process at start
 | MAX_CONNECTIONS | 10000 | Concurrent client connections. 0 means unlimited |
 | DIAL_TIMEOUT_SECONDS | 5 | Time allowed for resolving and dialing the backend |
 | DEBUG | false | Debug level logs |
-| DATABASE_TYPE | postgresql | postgresql; the PostgreSQL-compatible names cockroachdb, yugabytedb, timescaledb, citus, greenplum, questdb, cratedb (treated as postgresql, Services keep the label postgresql); or mongodb, redis, clickhouse, tls for SNI passthrough. TLS_* settings are ignored for the SNI types |
+| DATABASE_TYPE | postgresql | postgresql; the PostgreSQL-compatible names cockroachdb, yugabytedb, timescaledb, citus, greenplum, questdb, cratedb (treated as postgresql, Services keep the label postgresql); redis and clickhouse (username routing, SNI passthrough); mongodb and tls (SNI passthrough only, TLS_* settings are ignored). See Routing strategies |
 
 ## Discovery
 

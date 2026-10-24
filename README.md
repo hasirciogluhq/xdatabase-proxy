@@ -22,12 +22,12 @@ Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in
 | --- | --- | --- | --- |
 | PostgreSQL | `postgresql` | Login `user.deployment[.pool]`, TLS terminated by the proxy | ✅ Supported |
 | PostgreSQL-compatible: CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB, CrateDB (Aurora/AlloyDB PostgreSQL need nothing special) | `postgresql` or the product name (`cockroachdb`, `yugabytedb`, `timescaledb`, `citus`, `greenplum`, `questdb`, `cratedb`) | Same as PostgreSQL | ✅ Same code path. Wire handling is covered by tests; not yet run against the real products |
-| MongoDB, Redis, ClickHouse (secure native port), any TLS-first protocol | `mongodb`, `redis`, `clickhouse`, `tls` | TLS SNI `deployment[.pool].your-domain`, TLS passed through to the backend | ✅ Supported, tested with a generic TLS backend |
+| Redis | `redis` | Login `user.deployment[.pool]` in `AUTH`/`HELLO … AUTH`, and/or TLS SNI passthrough | ✅ Supported, tested with in-process fakes; CI runs real Redis |
+| ClickHouse (native protocol) | `clickhouse` | Login in the Hello packet, and/or TLS SNI passthrough | ✅ Supported, tested with in-process fakes only |
+| MongoDB, any TLS-first protocol | `mongodb`, `tls` | TLS SNI `deployment[.pool].your-domain`, passed through to the backend | ✅ Supported, tested with a generic TLS backend |
 | MySQL / MariaDB | – | The server speaks first and the password scramble is bound to the backend | 📋 Planned, hardest |
 
-One proxy instance serves one `DATABASE_TYPE`. Run one instance per type; Services are matched by the `xdatabase-proxy-database-type` label.
-
-**SNI example (MongoDB):** the backend has TLS enabled and clients connect to `db1.mongo.example.com` (DNS pointing at the proxy). `db1.pool.mongo.example.com` selects the pooled route. The client must send SNI, which every major driver does when TLS is on. The proxy never sees plaintext and needs no certificate.
+One proxy instance serves one `DATABASE_TYPE`. Which routing strategy (username or SNI) may reach a route is chosen by the cluster administrator with the Service label `xdatabase-proxy-routing: username | sni | all`; without it each type has a default. Details: [Routing strategies](docs/routing-strategies.md).
 
 ## How it is built
 

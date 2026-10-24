@@ -8,9 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Routing strategies: every route can be reached by username and/or TLS SNI; the Service label `xdatabase-proxy-routing: username|sni|all` decides, defaults depend on the database type (see `docs/routing-strategies.md`)
+- Username routing for Redis (`AUTH` / `HELLO … AUTH`) and ClickHouse (native Hello packet), with the routing suffix removed before forwarding
+- Gateway handler: SNI passthrough first, otherwise TLS termination and username routing; real Redis end-to-end test in CI
 - PostgreSQL: routing by TLS server name when the login has no deployment, and PostgreSQL 17 direct TLS (`sslnegotiation=direct`)
 - `DATABASE_TYPE` accepts `cockroachdb`, `yugabytedb`, `timescaledb`, `citus`, `greenplum`, `questdb`, `cratedb` (PostgreSQL handler); tests cover forwarding of extra startup parameters
-- SNI passthrough routing for MongoDB, Redis, ClickHouse and any TLS-first protocol (`DATABASE_TYPE=mongodb|redis|clickhouse|tls`), see `docs/sni-routing.md`
+- `DATABASE_TYPE=mongodb|redis|clickhouse|tls` with SNI passthrough for MongoDB and any TLS-first protocol
 - Documentation site in `docs/` (configuration, routing, discovery, TLS, deployment targets, use cases, security, operations, development), published with GitHub Pages by `pages.yaml`
 - `AGENTS.md` project guide for AI coding agents
 - README lists supported databases and a roadmap (PostgreSQL-compatible, TLS SNI routing, MySQL)

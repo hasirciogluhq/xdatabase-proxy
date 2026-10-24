@@ -18,8 +18,8 @@ func TestDatabaseType(t *testing.T) {
 		{"questdb", "postgresql", true, false},
 		{"cratedb", "postgresql", true, false},
 		{"mongodb", "mongodb", false, false},
-		{"redis", "redis", false, false},
-		{"clickhouse", "clickhouse", false, false},
+		{"redis", "redis", true, false},
+		{"clickhouse", "clickhouse", true, false},
 		{"tls", "tls", false, false},
 		{"mysql", "", false, true},
 	} {

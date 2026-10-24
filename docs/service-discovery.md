@@ -24,6 +24,7 @@ Label the Service of each database endpoint:
 | xdatabase-proxy-deployment-id | yes | Routing key, the deployment part of the login |
 | xdatabase-proxy-pooled: "true" | no | Marks the pooled endpoint. Missing means false |
 | xdatabase-proxy-destination-port | no | Port number or port name to use. Default is the first port |
+| xdatabase-proxy-routing | no | username, sni or all. Which routing strategies may reach this Service, see Routing strategies. Default depends on the database type |
 
 Example for a database and its pooler:
 

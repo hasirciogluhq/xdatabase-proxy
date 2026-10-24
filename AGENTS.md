@@ -13,7 +13,9 @@ LAYOUT
 cmd/proxy/main.go wires everything, handles signals, builds the Kubernetes client.
 cmd/proxy/internal/config reads environment variables and validates them.
 cmd/proxy/internal/postgres is the connection handler: startup negotiation, user parsing, dial, pipe.
-cmd/proxy/internal/sni routes TLS connections of other databases by server name and passes bytes through.
+cmd/proxy/internal/route holds the routing key, strategies (username, sni) and the resolver contract.
+cmd/proxy/internal/gateway routes Redis, ClickHouse, MongoDB and generic TLS connections: SNI passthrough or username routing.
+cmd/proxy/internal/protocol reads the login of Redis and ClickHouse from the first client message.
 cmd/proxy/internal/discovery has the static table and the Kubernetes informer resolver.
 cmd/proxy/internal/tlsstore stores certificates in a file, a Kubernetes Secret or memory.
 cmd/proxy/internal/health serves health and ready.
@@ -30,7 +32,7 @@ Rule: pkg contains code that knows nothing about this product. cmd/proxy/interna
 WHERE TO READ MORE
 
 Overview: docs/index.md
-SNI routing for non PostgreSQL databases: docs/sni-routing.md
+Routing strategies per database and the Service label: docs/routing-strategies.md
 How a connection flows: docs/architecture.md
 Login format and errors: docs/connection-routing.md
 Every environment variable: docs/configuration.md
@@ -64,7 +66,7 @@ Match the style of the surrounding code and keep comments short and useful.
 
 BEHAVIOUR TO PRESERVE
 
-PostgreSQL handler: if the login has no deployment, the TLS server name decides (db1.pool.example.com is db1 pooled). The login wins when both exist. Direct TLS (first byte 0x16, ALPN postgresql) is supported. DATABASE_TYPE names of PostgreSQL-compatible products map to postgresql.
+Routing strategies: username and sni. The Service label xdatabase-proxy-routing (username, sni or all) decides which may reach a Service; without it the defaults in main.go apply (postgresql username, redis and clickhouse both, mongodb and tls sni). PostgreSQL always reads the username; the TLS server name is used only if the login has no deployment and the label enables sni. Gateway order for TLS: enabled SNI route first (passthrough), else terminate TLS and route by username. Redis needs AUTH or HELLO AUTH as first command. Direct TLS (first byte 0x16, ALPN postgresql) is supported. DATABASE_TYPE names of PostgreSQL-compatible products map to postgresql.
 
 Last dot separated part of the user is the deployment, unless it is the word pool, then the part before it is. The proxy sends the plain user to the backend.
 If database is empty or equals the full login, the backend gets postgres.

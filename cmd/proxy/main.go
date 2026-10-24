@@ -16,9 +16,11 @@ import (
 
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/config"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/discovery"
+	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/gateway"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/health"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/postgres"
-	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/sni"
+	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/protocol"
+	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/route"
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/tlsstore"
 	"github.com/hasirciogluhq/xdatabase-proxy/pkg/proxy"
 	"k8s.io/client-go/kubernetes"
@@ -27,6 +29,17 @@ import (
 )
 
 var version = "dev"
+
+// defaultRouting lists the strategies allowed for Services without the
+// xdatabase-proxy-routing label. MongoDB sends its username only after the
+// connection is established, so it is routed by SNI.
+var defaultRouting = map[string][]route.Strategy{
+	"postgresql": {route.Username},
+	"redis":      {route.Username, route.SNI},
+	"clickhouse": {route.Username, route.SNI},
+	"mongodb":    {route.SNI},
+	"tls":        {route.SNI},
+}
 
 func main() {
 	healthcheck := flag.Bool("healthcheck", false, "probe the local /health endpoint and exit (for container HEALTHCHECK)")
@@ -72,7 +85,7 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		}
 	}
 
-	var resolver sni.Resolver
+	var resolver route.Resolver
 	if cfg.Discovery == "static" {
 		r, err := discovery.NewStatic(cfg.StaticBackends)
 		if err != nil {
@@ -80,28 +93,34 @@ func run(cfg *config.Config, log *slog.Logger) error {
 		}
 		resolver = r
 	} else {
-		r, err := discovery.NewKubernetes(ctx, kc, cfg.WatchNamespace, cfg.DatabaseType, cfg.ClusterDomain)
+		r, err := discovery.NewKubernetes(ctx, kc, cfg.WatchNamespace, cfg.DatabaseType, cfg.ClusterDomain, defaultRouting[cfg.DatabaseType])
 		if err != nil {
 			return err
 		}
 		resolver = r
 	}
 
-	var h proxy.Handler
-	if cfg.DatabaseType == "postgresql" {
-		pg := &postgres.Handler{Resolver: resolver, DialTimeout: cfg.DialTimeout, Log: log}
-		if cfg.TLSEnabled {
-			getTLS, err := tlsConfig(ctx, cfg, kc, log)
-			if err != nil {
-				return err
-			}
-			pg.TLS = getTLS
-		} else {
-			log.Warn("TLS is disabled, client connections will not be encrypted")
+	// The proxy terminates client TLS only for username routing; SNI passthrough needs no certificate.
+	var getTLS func() *tls.Config
+	if cfg.TLSEnabled {
+		var err error
+		if getTLS, err = tlsConfig(ctx, cfg, kc, log); err != nil {
+			return err
 		}
-		h = pg
-	} else {
-		h = &sni.Handler{Resolver: resolver, DialTimeout: cfg.DialTimeout, Log: log}
+	} else if cfg.DatabaseType == "postgresql" || cfg.DatabaseType == "redis" || cfg.DatabaseType == "clickhouse" {
+		log.Warn("TLS is disabled, client connections will not be encrypted")
+	}
+
+	var h proxy.Handler
+	switch cfg.DatabaseType {
+	case "postgresql":
+		h = &postgres.Handler{Resolver: resolver, TLS: getTLS, DialTimeout: cfg.DialTimeout, Log: log}
+	case "redis":
+		h = &gateway.Handler{Resolver: resolver, Login: protocol.Redis{}, TLS: getTLS, DialTimeout: cfg.DialTimeout, Log: log}
+	case "clickhouse":
+		h = &gateway.Handler{Resolver: resolver, Login: protocol.ClickHouse{}, TLS: getTLS, DialTimeout: cfg.DialTimeout, Log: log}
+	default: // mongodb, tls
+		h = &gateway.Handler{Resolver: resolver, DialTimeout: cfg.DialTimeout, Log: log}
 	}
 
 	ln, err := net.Listen("tcp", ":"+cfg.ProxyPort)

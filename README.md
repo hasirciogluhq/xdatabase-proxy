@@ -33,6 +33,14 @@ One proxy instance serves one `DATABASE_TYPE`. Which routing strategy (username 
 
 **MongoDB limits:** routing needs the client to use TLS and send the server name (SNI); plaintext connections or clients without SNI are closed. Routing by username is not possible, because MongoDB sends the user only after the server answered `hello`. With passthrough the client must trust the backend's certificate (or use options like `tlsAllowInvalidCertificates` for a self-signed one); with `SNI_TLS_MODE=terminate` it sees the proxy's certificate.
 
+## Roadmap & a promise
+
+As promised, XDatabase Proxy is no longer just a PostgreSQL router: Redis, ClickHouse, MongoDB and any TLS-first protocol are now in, along with SNI routing and TLS termination or passthrough.
+
+And here is a new promise: if I make it, this will grow into a truly universal database proxy. Every top-tier database will get first-class support, and the goal is for it to become an indispensable tool for platforms.
+
+Next up: MySQL / MariaDB (the hardest one, since the server speaks first and the password scramble is bound to the backend), then wider real-world testing of the PostgreSQL-compatible and ClickHouse paths. Ideas, bug reports and contributions are very welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## How it is built
 
 | Concern | Implementation |

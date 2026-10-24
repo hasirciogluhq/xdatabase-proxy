@@ -21,7 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Graceful shutdown, GSSENC negotiation, `-healthcheck` flag, hot certificate reload
 - CI: race tests, govulncheck, manifest rendering, image scan, end-to-end psql test; Dependabot
 - Release pipeline: tag runs the full CI first, then multi-arch image with SBOM and provenance, then the GitHub release
-- Trivy runs as a container instead of a third-party action
+- Trivy runs as a container instead of a third-party action, with a cached database
+- CI is faster: jobs run in parallel (test, vulncheck, manifests, image, e2e), govulncheck is installed instead of rebuilt, images are packaged from binaries built on the runner (`--build-arg SRC=prebuilt`), QEMU and Docker layer cache uploads are gone, Dockerfile uses BuildKit cache mounts
 - Publish calls the full CI only for tags, so branch pushes no longer run CI twice
 
 ### Changed

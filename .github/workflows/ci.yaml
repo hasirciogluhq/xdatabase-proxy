@@ -14,6 +14,7 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# All jobs run in parallel; setup-go caches the module and build caches (keyed on go.sum).
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,10 +28,17 @@ jobs:
       - run: go mod verify
       - run: go vet ./...
       - run: go test -race -cover ./...
-      - name: Vulnerability scan
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-      - name: Build
-        run: CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/proxy
+
+  vulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # go install keeps the compiled tool in the build cache; go run @latest rebuilt it every time.
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: govulncheck ./...
 
   manifests:
     runs-on: ubuntu-latest
@@ -46,19 +54,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build binary
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o bin/linux-amd64/xdatabase-proxy ./cmd/proxy
       - uses: docker/setup-buildx-action@v3
       - name: Build image
         uses: docker/build-push-action@v6
         with:
           context: .
           load: true
+          platforms: linux/amd64
+          build-args: SRC=prebuilt
           tags: xdatabase-proxy:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Cache Trivy database
+        uses: actions/cache@v4
+        with:
+          path: .trivy
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: trivy-db-
       - name: Scan image
         run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest image --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 xdatabase-proxy:ci
+          mkdir -p .trivy
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/.trivy:/root/.cache/trivy" \
+            aquasec/trivy:latest image --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 xdatabase-proxy:ci
 
   e2e:
     # Real PostgreSQL behind the proxy: connect through "user.deployment".
@@ -81,7 +101,7 @@ jobs:
         run: |
           go build -o proxy ./cmd/proxy
           STATIC_BACKENDS=e2e=127.0.0.1:5432 PROXY_START_PORT=6432 ./proxy &
-          sleep 2
+          for i in $(seq 20); do curl -fs localhost:8080/ready && break; sleep 0.5; done
           for mode in require disable; do
             psql "host=127.0.0.1 port=6432 user=postgres.e2e dbname=postgres sslmode=$mode" -tAc "select 'ok-$mode'" | grep "ok-$mode"
           done

@@ -38,7 +38,7 @@ Add a test for every behaviour change. Handler tests use real sockets and a fake
 
 ## CI
 
-ci.yaml runs on every push and pull request: gofmt, go mod verify, vet, race tests with coverage, govulncheck, Kustomize rendering of all variants, image build with Trivy scan, and an end-to-end psql run against a real PostgreSQL service.
+ci.yaml runs on every push and pull request, with these jobs in parallel: test (gofmt, go mod verify, vet, race tests with coverage), vulncheck (govulncheck), manifests (Kustomize rendering of all variants), image (binary built on the runner, packaged with `--build-arg SRC=prebuilt`, Trivy scan with cached database) and e2e (psql against a real PostgreSQL service). `docker build .` without arguments still compiles inside Docker and is what users run locally; CI does not exercise that path.
 
 ## Release
 

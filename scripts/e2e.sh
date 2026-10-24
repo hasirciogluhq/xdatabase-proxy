@@ -62,11 +62,19 @@ start_proxy() {
   return 1
 }
 
-# wait_for DESCRIPTION CMD... : retry a command for up to 60 s
+# wait_for DESCRIPTION [CONTAINER] CMD... : retry a command for up to 60 s.
+# With a CONTAINER name (when the second argument names a running container) its log is printed on timeout.
 wait_for() {
-  local what=$1; shift
+  local what=$1 ctr=""; shift
+  if docker inspect "$1" >/dev/null 2>&1; then ctr=$1; shift; fi
   for _ in $(seq 120); do "$@" >/dev/null 2>&1 && return 0; sleep 0.5; done
-  echo "timeout waiting for $what"; return 1
+  echo "timeout waiting for $what"
+  if [ -n "$ctr" ]; then
+    echo "--- last command output:"; "$@" 2>&1 | tail -5
+    echo "--- container state: $(docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}}' "$ctr")"
+    echo "--- container log:"; docker logs "$ctr" 2>&1 | tail -15
+  fi
+  return 1
 }
 
 # client IMAGE ARGS... : run a CLI in a container on the test network
@@ -135,16 +143,19 @@ test_redis() {
 
 test_mongodb() {
   echo "== mongodb ($MONGO_IMAGE)"
-  # mongod with a throw-away certificate; the proxy only passes TLS through, routed by host name (SNI)
-  run_bg mongo "$MONGO_IMAGE" "$MONGO_IMAGE" bash -c '
-    openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=mongo -keyout /tmp/k.pem -out /tmp/c.pem 2>/dev/null &&
-    cat /tmp/k.pem /tmp/c.pem > /tmp/m.pem &&
-    exec mongod --tlsMode requireTLS --tlsCertificateKeyFile /tmp/m.pem --bind_ip_all' || return 1
-  wait_for "mongod" docker exec mongo mongosh --quiet --tls --tlsAllowInvalidCertificates --eval "db.runCommand({ping:1}).ok" || return 1
+  # mongod with a throw-away certificate made on the host (the image may not ship openssl);
+  # the proxy only passes TLS through, routed by host name (SNI)
+  openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=mongo \
+    -keyout "$WORK/mongo.key" -out "$WORK/mongo.crt" >/dev/null 2>&1 || { echo "openssl failed"; return 1; }
+  cat "$WORK/mongo.key" "$WORK/mongo.crt" > "$WORK/mongo.pem" && chmod 644 "$WORK/mongo.pem"
+  run_bg mongo "$MONGO_IMAGE" -v "$WORK/mongo.pem:/tls/mongo.pem:ro" "$MONGO_IMAGE" \
+    mongod --tlsMode requireTLS --tlsCertificateKeyFile /tls/mongo.pem --bind_ip_all || return 1
+  wait_for "mongod" mongo docker exec mongo mongosh --quiet --tls --tlsAllowInvalidCertificates --tlsAllowInvalidHostnames \
+    --eval "db.runCommand({ping:1}).ok" || return 1
   ALIASES=(--network-alias m1.mongo.example.com --network-alias m1.pool.mongo.example.com --network-alias nope.mongo.example.com)
   start_proxy proxy-mongo DATABASE_TYPE=mongodb STATIC_BACKENDS=m1=mongo:27017,m1.pool=mongo:27017 PROXY_START_PORT=27017 || return 1
   ALIASES=()
-  local ms=(client "$MONGO_IMAGE" mongosh --quiet --tls --tlsAllowInvalidCertificates --eval)
+  local ms=(client "$MONGO_IMAGE" mongosh --quiet --tls --tlsAllowInvalidCertificates --tlsAllowInvalidHostnames --eval)
   check "ping through SNI route" "1" "${ms[@]}" "db.runCommand({ping:1}).ok" --host m1.mongo.example.com
   check "pooled route (.pool host)" "1" "${ms[@]}" "db.runCommand({ping:1}).ok" --host m1.pool.mongo.example.com
   check "insert and read back" "e2e" "${ms[@]}" "db.t.insertOne({v:'e2e'}); db.t.findOne().v" --host m1.mongo.example.com

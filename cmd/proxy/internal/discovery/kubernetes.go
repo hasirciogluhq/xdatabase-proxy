@@ -3,9 +3,12 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/hasirciogluhq/xdatabase-proxy/cmd/proxy/internal/route"
@@ -34,6 +37,10 @@ type Kubernetes struct {
 	idx      cache.Indexer
 	domain   string
 	defaults []route.Strategy
+
+	// warned remembers ambiguous routes already reported, so the warning is
+	// logged once per distinct set of candidates instead of once per connection.
+	warned sync.Map
 }
 
 // NewKubernetes starts the informer and waits for the first sync.
@@ -87,12 +94,39 @@ func (k *Kubernetes) Resolve(_ context.Context, key route.Key, via route.Strateg
 	if len(svcs) == 0 {
 		return "", fmt.Errorf("deployment %q is not routable via %s (label %s)", key.Deployment, via, labelRouting)
 	}
-	// Several services on one route: pick deterministically.
+	// Several services on one route: pick deterministically, but say so.
 	sort.Slice(svcs, func(i, j int) bool {
 		return svcs[i].Namespace+"/"+svcs[i].Name < svcs[j].Namespace+"/"+svcs[j].Name
 	})
+	if len(svcs) > 1 {
+		k.warnAmbiguous(key, via, svcs)
+	}
 	s := svcs[0]
-	return fmt.Sprintf("%s.%s.svc.%s:%d", s.Name, s.Namespace, k.domain, targetPort(s)), nil
+	port, err := targetPort(s)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s.%s.svc.%s:%d", s.Name, s.Namespace, k.domain, port), nil
+}
+
+// warnAmbiguous reports a route that matches more than one Service. A missing
+// xdatabase-proxy-pooled label counts as false, so a pooler Service without it
+// shares the direct route and may win the name sort without any error.
+func (k *Kubernetes) warnAmbiguous(key route.Key, via route.Strategy, svcs []*corev1.Service) {
+	names := make([]string, len(svcs))
+	for i, s := range svcs {
+		names[i] = s.Namespace + "/" + s.Name
+	}
+	id := routeKey(key.Deployment, key.Pooled) + "|" + string(via) + "|" + strings.Join(names, ",")
+	if _, seen := k.warned.LoadOrStore(id, struct{}{}); seen {
+		return
+	}
+	slog.Warn("several services match one route, using the first by namespace/name; set "+labelPooled+" or "+labelRouting+" to disambiguate",
+		"deployment", key.Deployment,
+		"pooled", key.Pooled,
+		"via", via,
+		"chosen", names[0],
+		"candidates", names)
 }
 
 // allows applies the xdatabase-proxy-routing label (username, sni or all);
@@ -107,14 +141,17 @@ func (k *Kubernetes) allows(s *corev1.Service, via route.Strategy) bool {
 	return slices.Contains(k.defaults, via)
 }
 
-// targetPort honours the destination-port label (port number or name), else the first port.
-func targetPort(s *corev1.Service) int32 {
-	if d := s.Labels[labelDestination]; d != "" {
-		for _, p := range s.Spec.Ports {
-			if d == strconv.Itoa(int(p.Port)) || d == p.Name {
-				return p.Port
-			}
+// targetPort honours the destination-port label (port number or name), else the
+// first port. A label that matches no port is an error, not a silent fallback.
+func targetPort(s *corev1.Service) (int32, error) {
+	d := s.Labels[labelDestination]
+	if d == "" {
+		return s.Spec.Ports[0].Port, nil
+	}
+	for _, p := range s.Spec.Ports {
+		if d == strconv.Itoa(int(p.Port)) || d == p.Name {
+			return p.Port, nil
 		}
 	}
-	return s.Spec.Ports[0].Port
+	return 0, fmt.Errorf("service %s/%s: %s %q matches no port", s.Namespace, s.Name, labelDestination, d)
 }

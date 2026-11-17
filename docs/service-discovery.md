@@ -49,10 +49,19 @@ The login alice.orders now reaches orders-db.data.svc.cluster.local:5432. Create
 ## Behaviour
 
 - Changes are picked up within a second through the watch. No restart is needed.
-- If several Services share one route, the lowest namespace/name wins.
+- If several Services share one route, the lowest namespace/name wins and the proxy logs one warning naming every candidate.
+- A destination-port label that matches no port of the Service is an error, not a fallback to the first port.
 - Services without ports are ignored.
 - The proxy talks to the Service DNS name, so the proxy pods need working cluster DNS. For other cluster domains set CLUSTER_DOMAIN.
 - The informer resyncs every 10 minutes as a safety net and reconnects by itself after API server outages.
+
+## Upgrading from v2.0.0
+
+A missing xdatabase-proxy-pooled label means false. If a pooler Service (pgbouncer) lacks the label, it shares the direct route with the database Service, and the first by namespace/name wins. The proxy logs a warning naming every candidate. Label the pooler xdatabase-proxy-pooled: "true".
+
+A successful connection does not prove the route. In staging, run with DEBUG=true, replay your real connection strings and check the backend field of each session started line.
+
+xdatabase-proxy-destination-port is now honoured. A value that matches no port of the Service is an error.
 
 ## Permissions
 

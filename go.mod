@@ -1,6 +1,6 @@
 module github.com/hasirciogluhq/xdatabase-proxy
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/jackc/pgx/v5 v5.11.0
@@ -39,7 +39,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.47.0 // indirect

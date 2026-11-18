@@ -17,7 +17,7 @@ kubectl apply -k kubernetes/production/daemonset-hostport
 Straight from GitHub, pinned to a release:
 
 ```bash
-kubectl apply -k "github.com/hasirciogluhq/xdatabase-proxy/kubernetes/production/nodeport?ref=v2.1.2"
+kubectl apply -k "github.com/hasirciogluhq/xdatabase-proxy/kubernetes/production/nodeport?ref=v2.2.0"
 ```
 
 ## Base
@@ -62,10 +62,10 @@ Create your own kustomization that references a variant and patches it:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - github.com/hasirciogluhq/xdatabase-proxy/kubernetes/production/nodeport?ref=v2.1.2
+  - github.com/hasirciogluhq/xdatabase-proxy/kubernetes/production/nodeport?ref=v2.2.0
 images:
   - name: ghcr.io/hasirciogluhq/xdatabase-proxy
-    newTag: 2.1.2              # image tags have no "v"
+    newTag: 2.2.0              # image tags have no "v"
 patches:
   - target: { kind: Deployment, name: xdatabase-proxy }
     patch: |

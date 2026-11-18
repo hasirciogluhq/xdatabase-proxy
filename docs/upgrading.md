@@ -5,12 +5,9 @@ nav_order: 14
 
 # Upgrading
 
-Releases follow semantic versioning. Image tags have no `v`: git tag `v2.1.2` is image `ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2`. The full history is in the [changelog](https://github.com/hasirciogluhq/xdatabase-proxy/blob/main/CHANGELOG.md).
+Releases follow semantic versioning. Image tags have no `v`: git tag `v2.2.0` is image `ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0`. The full history is in the [changelog](https://github.com/hasirciogluhq/xdatabase-proxy/blob/main/CHANGELOG.md).
 
-## After 2.1.2 (main, not yet released)
-
-Merged on `main` after the v2.1.2 tag (commits eeac149 and cd7fc65). Image `2.1.2` does not contain them yet; they ship with the next release, or build the image from `main` (`docker build .`).
-
+## 2.1.x to 2.2.0
 
 - **Breaking:** an `xdatabase-proxy-destination-port` label that matches no port of the Service now fails the connection instead of silently using the first port. Check your labels before upgrading:
 

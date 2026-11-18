@@ -14,7 +14,7 @@ docker network create xdp
 docker run -d --name pg --network xdp -e POSTGRES_PASSWORD=secret postgres:17-alpine
 docker run -d --name proxy --network xdp -p 5432:5432 -p 8080:8080 \
   -e STATIC_BACKENDS="app=pg:5432,app.pool=pg:5432" \
-  ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2
+  ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0
 
 psql "host=localhost port=5432 user=postgres.app dbname=postgres sslmode=require"   # password: secret
 ```
@@ -41,7 +41,7 @@ docker network create xdp
 docker run -d --name redis --network xdp redis:7-alpine redis-server --requirepass secret
 docker run -d --name proxy-redis --network xdp -p 6379:6379 \
   -e DATABASE_TYPE=redis -e PROXY_START_PORT=6379 -e STATIC_BACKENDS="cache1=redis:6379" \
-  ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2
+  ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0
 
 redis-cli -h localhost --user default.cache1 --pass secret ping      # PONG
 ```
@@ -68,7 +68,7 @@ curl http://localhost:8080/ready    # ready
 The first log lines show the version and mode:
 
 ```json
-{"level":"INFO","msg":"starting xdatabase-proxy","version":"v2.1.2","discovery":"static","tls":true}
+{"level":"INFO","msg":"starting xdatabase-proxy","version":"v2.2.0","discovery":"static","tls":true}
 {"level":"INFO","msg":"listening","port":"5432"}
 ```
 

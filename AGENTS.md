@@ -32,6 +32,11 @@ Rule: pkg contains code that knows nothing about this product. cmd/proxy/interna
 WHERE TO READ MORE
 
 Overview: docs/index.md
+Core model (route key, strategies, resolvers, TLS ownership): docs/concepts.md
+Per-database behaviour and limits: docs/databases/ (postgresql, redis, clickhouse, mongodb)
+Version changes and upgrade checks: docs/upgrading.md
+Labels and log messages: docs/reference/labels.md, docs/reference/log-messages.md
+Common questions: docs/faq.md
 Routing strategies per database and the Service label: docs/routing-strategies.md
 How a connection flows: docs/architecture.md
 Login format and errors: docs/connection-routing.md

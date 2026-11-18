@@ -14,7 +14,7 @@ postgresql://user.<deployment>[.pool]@proxy:5432/db
 
 The proxy strips the routing suffix before forwarding, so the backend sees plain `user`. If `database` is empty or equals the full login (psql's default), it becomes `postgres`.
 
-Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in [docs/](docs)).
+Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in [docs/](docs)): [getting started](docs/getting-started.md), per-database guides for [PostgreSQL](docs/databases/postgresql.md), [Redis](docs/databases/redis.md), [ClickHouse](docs/databases/clickhouse.md) and [MongoDB/TLS](docs/databases/mongodb.md), [configuration](docs/configuration.md), [upgrading](docs/upgrading.md).
 
 ## Supported databases
 
@@ -23,8 +23,8 @@ Full documentation: https://hasirciogluhq.github.io/xdatabase-proxy/ (sources in
 | PostgreSQL | `postgresql` | Login `user.deployment[.pool]`, TLS terminated by the proxy | ✅ Supported |
 | PostgreSQL-compatible: CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB, CrateDB (Aurora/AlloyDB PostgreSQL need nothing special) | `postgresql` or the product name (`cockroachdb`, `yugabytedb`, `timescaledb`, `citus`, `greenplum`, `questdb`, `cratedb`) | Same as PostgreSQL | ✅ Same code path. Wire handling is covered by tests; not yet run against the real products |
 | Redis | `redis` | Login `user.deployment[.pool]` in `AUTH`/`HELLO … AUTH`, and/or TLS SNI passthrough | ✅ Supported, e2e-tested with real Redis |
-| ClickHouse (native protocol) | `clickhouse` | Login in the Hello packet, and/or TLS SNI passthrough | ✅ Supported, tested with in-process fakes only |
-| MongoDB, any TLS-first protocol | `mongodb`, `tls` | TLS SNI `deployment[.pool].your-domain`, passed through to the backend | ✅ Supported, tested with a generic TLS backend |
+| ClickHouse (native protocol) | `clickhouse` | Login in the Hello packet, and/or TLS SNI passthrough | ✅ Supported, e2e-tested with real ClickHouse |
+| MongoDB, any TLS-first protocol | `mongodb`, `tls` | TLS SNI `deployment[.pool].your-domain`, passed through to the backend | ✅ Supported, e2e-tested with real MongoDB 8 (passthrough and terminate) |
 | MySQL / MariaDB | – | The server speaks first and the password scramble is bound to the backend | 📋 Planned, hardest |
 
 One proxy instance serves one `DATABASE_TYPE`. Which routing strategy (username or SNI) may reach a route is chosen by the cluster administrator with the Service label `xdatabase-proxy-routing: username | sni | all`; without it each type has a default. Details: [Routing strategies](docs/routing-strategies.md).
@@ -71,13 +71,13 @@ kubectl apply -k kubernetes/production/nodeport          # or .../daemonset-host
 kubectl apply -k kubernetes/development && kubectl apply -n xdatabase-proxy -f kubernetes/test/postgresql.yaml
 ```
 
-Pin the image to a version tag or digest in production. Images are multi-arch, distroless, non-root, and published with SBOM and provenance attestations.
+Pin the image to a version tag (`2.1.2`, `2.1`; image tags have no `v`) or digest in production. Images are multi-arch, distroless, non-root, and published with SBOM and provenance attestations.
 
 **Container / VM** (static routing, no Kubernetes needed):
 
 ```bash
 docker run -p 5432:5432 -e STATIC_BACKENDS="db1=10.0.0.5:5432,db1.pool=10.0.0.5:6432" \
-  ghcr.io/hasirciogluhq/xdatabase-proxy:latest
+  ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2
 ```
 
 For Kubernetes discovery outside a cluster set `KUBECONFIG` (and optionally `KUBE_CONTEXT`).
@@ -127,7 +127,7 @@ Certificates are re-checked every 6 hours and hot-swapped, so cert-manager rotat
 
 - Startup packets are size-limited by `pgproto3` (10 kB), startup has a 10 s deadline, negotiation attempts are capped (no recursion).
 - Redis/ClickHouse logins and TLS ClientHellos are read with fixed size limits and a 10 s deadline.
-- Connection cap, graceful shutdown (drains for 25 s on SIGTERM), health goes unready first.
+- Connection cap, graceful shutdown: on SIGTERM the listener closes and sessions get 25 s to finish.
 - Startup parameters and passwords are never logged.
 - Minimal dependency set, `go mod verify`, `govulncheck` and Trivy in CI, Dependabot for Go modules, actions and base image.
 - Pods run non-root with a read-only filesystem and all capabilities dropped.

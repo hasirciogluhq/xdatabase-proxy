@@ -20,7 +20,7 @@ Label the Service of each database endpoint:
 | Label | Required | Meaning |
 | --- | --- | --- |
 | xdatabase-proxy-enabled: "true" | yes | Opt in |
-| xdatabase-proxy-database-type: postgresql | yes | Protocol |
+| xdatabase-proxy-database-type | yes | Protocol. Must equal the proxy's DATABASE_TYPE: postgresql (also for compatible products), redis, clickhouse, mongodb or tls |
 | xdatabase-proxy-deployment-id | yes | Routing key, the deployment part of the login |
 | xdatabase-proxy-pooled: "true" | no | Marks the pooled endpoint. Missing means false |
 | xdatabase-proxy-destination-port | no | Port number or port name to use. Default is the first port |
@@ -49,7 +49,8 @@ The login alice.orders now reaches orders-db.data.svc.cluster.local:5432. Create
 ## Behaviour
 
 - Changes are picked up within a second through the watch. No restart is needed.
-- If several Services share one route, the lowest namespace/name wins and the proxy logs one warning naming every candidate.
+- Services whose routing label does not allow the client's strategy are skipped before a winner is chosen.
+- If several Services still share one route, the lowest namespace/name wins and the proxy logs one warning naming every candidate.
 - A destination-port label that matches no port of the Service is an error, not a fallback to the first port.
 - Services without ports are ignored.
 - The proxy talks to the Service DNS name, so the proxy pods need working cluster DNS. For other cluster domains set CLUSTER_DOMAIN.

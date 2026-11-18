@@ -30,7 +30,7 @@ CockroachDB, YugabyteDB, TimescaleDB, Citus, Greenplum, QuestDB and CrateDB spea
 
 ## MongoDB, Redis and ClickHouse
 
-Use SNI routing, see SNI routing. Run one proxy instance per database type.
+Redis and ClickHouse use the same login format (`AUTH alice.cache1.pool secret`, ClickHouse user `alice.events`) or the TLS server name. MongoDB is routed only by TLS server name. See [Routing strategies](routing-strategies.md). Run one proxy instance per database type.
 
 ## Databases on VMs
 

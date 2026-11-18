@@ -53,13 +53,13 @@ Create your own kustomization that references a variant and patches it:
 
 ```yaml
 resources:
-  - github.com/hasirciogluhq/xdatabase-proxy/kubernetes/production/nodeport?ref=v2.1.0
+  - github.com/hasirciogluhq/xdatabase-proxy/kubernetes/production/nodeport?ref=v2.1.2
 images:
   - name: ghcr.io/hasirciogluhq/xdatabase-proxy
-    newTag: v2.1.0
+    newTag: v2.1.2
 ```
 
-Typical patches: image tag or digest, replicas, resource limits, WATCH_NAMESPACE with a Role in place of the ClusterRole, TLS_SECRET_NAME for a cert-manager certificate.
+The manifests run PostgreSQL. For another database add DATABASE_TYPE (and SNI_TLS_MODE if needed) to the container env and change the port. Typical patches: image tag or digest, replicas, resource limits, WATCH_NAMESPACE with a Role in place of the ClusterRole, TLS_SECRET_NAME for a cert-manager certificate.
 
 ## Where backends may live
 

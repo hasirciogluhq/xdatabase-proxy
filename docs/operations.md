@@ -16,7 +16,7 @@ The image also has a built-in check: `/xdatabase-proxy -healthcheck` calls /heal
 
 ## Logs
 
-JSON on standard output through slog. Fields include remote, deployment, pooled, backend and error. Set DEBUG=true to log session starts and startup failures. Startup parameters are never logged.
+JSON on standard output through slog. Fields include remote, via (username or sni), deployment, pooled, backend and error. Set DEBUG=true to log session starts, startup failures, failed TLS handshakes and unusable SNI routes. Startup parameters are never logged.
 
 ## Upgrades
 
@@ -32,7 +32,10 @@ A session costs two sockets and two small copy goroutines. The manifests request
 
 | Symptom | Likely cause | Check |
 | --- | --- | --- |
-| no backend for this user | Login has no deployment part, or no matching Service or table entry | Log line resolve failed, labels on the Service, login format |
+| no backend for this user | Login has no deployment part, no matching Service or table entry, or the routing label does not allow the strategy | Log line resolve failed, labels on the Service, login format |
+| Wrong backend reached | Several Services share a route (often a pooler without xdatabase-proxy-pooled) | Warning several services match one route lists the candidates |
+| resolve failed: matches no port | xdatabase-proxy-destination-port names a port the Service does not have | Fix the label or the Service ports |
+| SNI client closed at once | No route for the host name, route does not allow sni, or client sent no SNI (connected by IP) | DEBUG=true, log line sni route unavailable |
 | backend unavailable | Service DNS fails or backend down | Log line dial failed shows the address. Test it from the proxy pod |
 | Pod not ready | Cannot reach the API server, or TLS Secret cannot be created | Pod log. RBAC for services and the Secret |
 | sslmode=require refused | TLS_ENABLED=false | Configuration |

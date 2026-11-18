@@ -5,7 +5,9 @@ nav_order: 7
 
 # TLS
 
-TLS is on by default. The proxy answers the PostgreSQL SSLRequest and upgrades the connection. The connection from the proxy to the backend is plain TCP, so keep it inside a trusted network or use a mesh or tunnel for that hop.
+TLS is on by default. The proxy answers the PostgreSQL SSLRequest and upgrades the connection, and terminates TLS for Redis and ClickHouse username routing. When the proxy terminates TLS, the connection from the proxy to the backend is plain TCP, so keep it inside a trusted network or use a mesh or tunnel for that hop.
+
+SNI routes (Redis, ClickHouse, MongoDB, tls) pass TLS through to the backend by default and need no certificate on the proxy. With SNI_TLS_MODE=terminate the proxy uses the certificate described on this page. See [Routing strategies](routing-strategies.md#tls-terminate-or-pass-through).
 
 ## Modes
 
@@ -39,8 +41,8 @@ Minimum protocol is TLS 1.2. Cipher suites follow the Go defaults.
 
 ## Server name and direct TLS
 
-The proxy reads the server name (SNI) of the client's TLS handshake and can route by it, see Connection routing. It also accepts PostgreSQL 17 direct TLS connections (ALPN postgresql), so `sslnegotiation=direct` works.
+The proxy reads the server name (SNI) of the client's TLS handshake and can route by it when the Service allows sni, see [Connection routing](connection-routing.md). It also accepts PostgreSQL 17 direct TLS connections (ALPN postgresql), so `sslnegotiation=direct` works.
 
 ## Disabling TLS
 
-TLS_ENABLED=false makes the proxy answer N to every SSLRequest. Clients with sslmode=require will refuse to connect. Only do this when TLS is handled elsewhere.
+TLS_ENABLED=false makes the proxy answer N to every SSLRequest and close direct TLS connections. Clients with sslmode=require will refuse to connect. For Redis and ClickHouse, TLS clients can then only use SNI passthrough routes. Only do this when TLS is handled elsewhere.

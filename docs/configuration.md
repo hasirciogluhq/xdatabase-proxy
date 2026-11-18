@@ -16,7 +16,7 @@ All settings are environment variables. Invalid values stop the process at start
 | MAX_CONNECTIONS | 10000 | Concurrent client connections. 0 means unlimited |
 | DIAL_TIMEOUT_SECONDS | 5 | Time allowed for resolving and dialing the backend |
 | DEBUG | false | Debug level logs |
-| DATABASE_TYPE | postgresql | postgresql; the PostgreSQL-compatible names cockroachdb, yugabytedb, timescaledb, citus, greenplum, questdb, cratedb (treated as postgresql, Services keep the label postgresql); redis and clickhouse (username routing, SNI passthrough); mongodb and tls (SNI passthrough only, TLS_* settings are ignored). See Routing strategies |
+| DATABASE_TYPE | postgresql | postgresql; the PostgreSQL-compatible names cockroachdb, yugabytedb, timescaledb, citus, greenplum, questdb, cratedb (treated as postgresql, Services keep the label postgresql); redis and clickhouse (username routing, SNI passthrough); mongodb and tls (SNI routing only; TLS_* settings are used only with SNI_TLS_MODE=terminate). See [Routing strategies](routing-strategies.md) |
 
 ## Discovery
 
@@ -35,7 +35,7 @@ All settings are environment variables. Invalid values stop the process at start
 | Variable | Default | Description |
 | --- | --- | --- |
 | SNI_TLS_MODE | passthrough | passthrough or terminate. How SNI routes handle TLS for redis, clickhouse, mongodb and tls: pass the encrypted bytes through (backend terminates) or terminate at the proxy and use plain TCP to the backend. Terminate needs TLS_ENABLED=true. Not applicable to postgresql |
-| TLS_ENABLED | true | Offer TLS to clients |
+| TLS_ENABLED | true | Offer TLS to clients (proxy-side termination). Forced to false for mongodb and tls with SNI_TLS_MODE=passthrough, since no certificate is needed |
 | TLS_MODE | automatic | file, kubernetes or memory. Automatic: file if TLS_CERT_FILE is set, kubernetes if TLS_SECRET_NAME is set, else memory |
 | TLS_CERT_FILE, TLS_KEY_FILE | empty | Paths for file mode |
 | TLS_SECRET_NAME | empty | Secret of type kubernetes.io/tls for kubernetes mode |
@@ -44,10 +44,12 @@ All settings are environment variables. Invalid values stop the process at start
 
 ## Validation rules
 
-- file mode needs both TLS_CERT_FILE and TLS_KEY_FILE.
-- kubernetes mode needs TLS_SECRET_NAME.
-- Kubernetes access is needed when discovery is kubernetes or TLS mode is kubernetes.
-- Unknown values for DATABASE_TYPE, DISCOVERY_MODE, TLS_MODE or DATABASE_TYPE are errors.
+- file mode needs both TLS_CERT_FILE and TLS_KEY_FILE (checked only when TLS is enabled).
+- kubernetes mode needs TLS_SECRET_NAME (checked only when TLS is enabled).
+- SNI_TLS_MODE=terminate needs TLS_ENABLED=true and is rejected for postgresql.
+- Kubernetes access is needed when discovery is kubernetes or TLS is enabled in kubernetes mode.
+- Unknown values for DATABASE_TYPE, SNI_TLS_MODE, DISCOVERY_MODE or TLS_MODE are errors.
+- Boolean and number variables that cannot be parsed fall back to their default.
 
 ## Removed variables
 

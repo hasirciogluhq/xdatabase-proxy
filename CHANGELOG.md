@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Kubernetes discovery logs one warning per ambiguous route (several Services on the same deployment/pooled key), naming the chosen Service and every candidate
+- **Breaking:** an `xdatabase-proxy-destination-port` label that matches no port of the Service is now an error instead of a silent fallback to the first port
+- Go 1.27.4, `golang.org/x/net` v0.62.0
+- Documentation synced with the code: README, docs site and AGENTS.md now describe Redis/ClickHouse username routing, the gateway, `route` and `protocol` packages, `SNI_TLS_MODE` validation, the routing label in SNI routing for PostgreSQL, the current test set and that only tags publish images
+
 ## [2.1.2] - 2026-10-24
 
 ### Changed

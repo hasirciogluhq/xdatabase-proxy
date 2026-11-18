@@ -5,6 +5,8 @@ nav_order: 4
 
 # Connection routing
 
+This page describes PostgreSQL. The login rules (user splitting, .pool, host name parsing) are shared with Redis and ClickHouse; their protocol details and the routing label are in [Routing strategies](routing-strategies.md).
+
 ## Login format
 
 ```
@@ -23,7 +25,7 @@ The last dot separated part is the deployment, unless it is the word pool, in wh
 
 ## Routing by TLS server name (SNI)
 
-When the login has no deployment part and the client connected with TLS, the proxy uses the TLS server name instead:
+When the login has no deployment part and the client connected with TLS, the proxy uses the TLS server name instead. For PostgreSQL this is off by default: the Service must carry `xdatabase-proxy-routing: sni` or `all` (with STATIC_BACKENDS every strategy is allowed). The first label of the host is the deployment; `pool` as the second label marks the pooled route.
 
 | Client connects to host | Login | Deployment | Pooled |
 | --- | --- | --- | --- |
@@ -44,7 +46,8 @@ One deployment can expose two backends: a direct one (for migrations, long trans
 
 | Situation | Message | Code |
 | --- | --- | --- |
-| No route for the login | no backend for this user; expected user.deployment[.pool] | 08001 |
+| No route for the login, or the route does not allow the strategy | no backend for this user; expected user.deployment[.pool] | 08001 |
+| Direct TLS while TLS_ENABLED=false | connection closed without a message | none |
 | Backend cannot be reached | backend unavailable | 08001 |
 | Connection limit reached | connection closed without a message | none |
 | Startup too slow or malformed | connection closed without a message | none |

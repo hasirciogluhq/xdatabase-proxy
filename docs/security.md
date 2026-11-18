@@ -11,8 +11,9 @@ The proxy sits on a network edge and speaks to unauthenticated clients before an
 
 ## Built-in protections
 
-- Startup packets over 10000 bytes are rejected before allocation.
-- A startup must complete in 10 seconds. Slow clients are dropped.
+- PostgreSQL startup packets over 10000 bytes are rejected before allocation.
+- Redis logins are limited to 32 arguments and 4096 bytes, ClickHouse strings to 4096 bytes, and a TLS ClientHello to one TLS record.
+- Startup, login or ClientHello must complete in 10 seconds. Slow clients are dropped.
 - At most four negotiation packets (SSL, GSS) per connection, and no recursion.
 - MAX_CONNECTIONS caps concurrent sessions.
 - Backend dial has a timeout.
@@ -36,7 +37,7 @@ The manifests run as non-root with a read-only root filesystem, no privilege esc
 
 ## Things you must handle
 
-- The proxy to backend hop is not encrypted.
+- When the proxy terminates TLS (PostgreSQL, username routing, SNI_TLS_MODE=terminate) the proxy to backend hop is plain TCP. Only SNI passthrough keeps TLS end to end.
 - Authentication is the backend's job. Use strong passwords or certificates there.
 - Restrict who can create Services with the discovery labels, because a label routes traffic. In shared clusters use WATCH_NAMESPACE or admission policies.
 

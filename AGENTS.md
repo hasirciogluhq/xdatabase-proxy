@@ -4,7 +4,7 @@ Guide for AI coding agents working on this repository. Read this first. It is sh
 
 PROJECT
 
-XDatabase Proxy is a PostgreSQL connection router written in Go. A client logs in as user.deployment or user.deployment.pool. The proxy reads that name, finds the backend address, terminates TLS, rewrites the startup message to the plain user name and then copies bytes both ways. It does not parse SQL and does not authenticate users. Login based routing supports only PostgreSQL. Other TLS-first databases use SNI routing. MySQL is not supported. PostgreSQL-compatible products use the PostgreSQL handler.
+XDatabase Proxy is a database connection router written in Go. A client logs in as user.deployment or user.deployment.pool, or connects to the host deployment[.pool].domain with TLS. The proxy reads that name, finds the backend address, terminates TLS or passes it through, rewrites the login to the plain user name and then copies bytes both ways. It does not parse SQL and does not authenticate users. Login based routing supports PostgreSQL, Redis and ClickHouse. MongoDB and other TLS-first protocols use SNI routing only. MySQL is not supported. PostgreSQL-compatible products use the PostgreSQL handler.
 
 Module path: github.com/hasirciogluhq/xdatabase-proxy. The Go version is the one in go.mod.
 
@@ -71,7 +71,7 @@ Routing strategies: username and sni. The Service label xdatabase-proxy-routing 
 
 Last dot separated part of the user is the deployment, unless it is the word pool, then the part before it is. The proxy sends the plain user to the backend.
 If database is empty or equals the full login, the backend gets postgres.
-Kubernetes Services are routable only with labels xdatabase-proxy-enabled true, xdatabase-proxy-database-type postgresql and xdatabase-proxy-deployment-id. Label xdatabase-proxy-pooled defaults to false.
+Kubernetes Services are routable only with labels xdatabase-proxy-enabled true, xdatabase-proxy-database-type equal to DATABASE_TYPE and xdatabase-proxy-deployment-id. Label xdatabase-proxy-pooled defaults to false. Several Services on one route: lowest namespace/name wins and one warning is logged. A destination-port label matching no port is an error.
 The proxy never overwrites a certificate it did not create.
 Shutdown drains for 25 seconds. Pod grace period must stay longer.
 Configuration is environment variables only. Removed variables are listed in docs/configuration.md.
@@ -97,4 +97,4 @@ docs are deployed to GitHub Pages by pages.yaml on pushes to main. The repositor
 
 KNOWN LIMITS
 
-CancelRequest is not routed. The proxy to backend hop is plain TCP. Self-signed certificates do not pass verify-full.
+CancelRequest is not routed. The proxy to backend hop is plain TCP unless SNI passthrough is used. Self-signed certificates do not pass verify-full.

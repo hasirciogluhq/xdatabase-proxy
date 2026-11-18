@@ -71,13 +71,13 @@ kubectl apply -k kubernetes/production/nodeport          # or .../daemonset-host
 kubectl apply -k kubernetes/development && kubectl apply -n xdatabase-proxy -f kubernetes/test/postgresql.yaml
 ```
 
-Pin the image to a version tag (`2.1.2`, `2.1`; image tags have no `v`) or digest in production. Images are multi-arch, distroless, non-root, and published with SBOM and provenance attestations.
+Pin the image to a version tag (`2.2.0`, `2.2`; image tags have no `v`) or digest in production. Images are multi-arch, distroless, non-root, and published with SBOM and provenance attestations.
 
 **Container / VM** (static routing, no Kubernetes needed):
 
 ```bash
 docker run -p 5432:5432 -e STATIC_BACKENDS="db1=10.0.0.5:5432,db1.pool=10.0.0.5:6432" \
-  ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2
+  ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0
 ```
 
 For Kubernetes discovery outside a cluster set `KUBECONFIG` (and optionally `KUBE_CONTEXT`).

@@ -48,7 +48,7 @@ Configuration errors are printed as `configuration error: …` on standard error
 
 | Level | msg | Meaning |
 | --- | --- | --- |
-| WARN | several services match one route, using the first by namespace/name; … | Ambiguous route; fields `chosen`, `candidates`. Logged once per candidate set, on standard error in text form. Main after 2.1.2 |
+| WARN | several services match one route, using the first by namespace/name; … | Ambiguous route; fields `chosen`, `candidates`. Logged once per candidate set, on standard error in text form. Since 2.2.0 |
 | INFO | generating self-signed certificate | Field `renewal` is true when an expiring own certificate is replaced |
 | WARN | storing certificate failed, reloading | Another replica won the race, or the file or Secret is not writable |
 | WARN | certificate refresh failed | The 6 hourly reload failed; the current certificate stays in use |

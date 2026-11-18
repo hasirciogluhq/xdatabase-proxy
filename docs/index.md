@@ -8,7 +8,7 @@ permalink: /
 
 XDatabase Proxy is a small, dependency-light database connection router. Clients connect to one endpoint. The proxy looks at the login or at the TLS server name, finds the matching backend and forwards the connection. Behind one address you can run hundreds of databases, each with a direct and a pooled endpoint, without handing out internal host names.
 
-These docs describe the code on `main`: release **v2.1.2** plus the fixes merged after it (ambiguous route warning, strict `xdatabase-proxy-destination-port`, Go 1.27.4), see [Upgrading](upgrading.md#after-212-main-not-yet-released). Latest image: `ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2`; the post-2.1.2 fixes ship with the next release, or build from `main`.
+These docs describe the code on `main`, currently release **v2.2.0** (image `ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0`). Version changes and upgrade checks are in [Upgrading](upgrading.md).
 
 ![psql connected through the proxy with TLS]({{ site.baseurl }}/assets/images/psql-tls-connection.png)
 

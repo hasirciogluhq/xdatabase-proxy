@@ -22,7 +22,7 @@ All Kubernetes variants build on `kubernetes/base`: namespace `xdatabase-proxy`,
 
 | Image | Tags | Built from |
 | --- | --- | --- |
-| `ghcr.io/hasirciogluhq/xdatabase-proxy` | `2.1.2`, `2.1`, `latest` | Every `v*` git tag (git tag `v2.1.2` → image tag `2.1.2`) |
+| `ghcr.io/hasirciogluhq/xdatabase-proxy` | `2.2.0`, `2.2`, `latest` | Every `v*` git tag (git tag `v2.2.0` → image tag `2.2.0`) |
 
 Images are linux/amd64 and linux/arm64, based on `gcr.io/distroless/static-debian12:nonroot`, with SBOM and SLSA provenance attestations. The binary is `/xdatabase-proxy`; ports 5432 and 8080 are exposed; the Docker HEALTHCHECK runs `/xdatabase-proxy -healthcheck`.
 
@@ -31,7 +31,7 @@ Pin a version or digest in production. `latest` follows the newest release.
 Verify provenance:
 
 ```bash
-gh attestation verify oci://ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2 --owner hasirciogluhq
+gh attestation verify oci://ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0 --owner hasirciogluhq
 ```
 
 ## One instance per database type

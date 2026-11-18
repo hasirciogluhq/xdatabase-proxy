@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-18
+
+### Added
+- README roadmap section: MySQL / MariaDB support is next
+
 ### Changed
 - Kubernetes discovery logs one warning per ambiguous route (several Services on the same deployment/pooled key), naming the chosen Service and every candidate
 - **Breaking:** an `xdatabase-proxy-destination-port` label that matches no port of the Service is now an error instead of a silent fallback to the first port

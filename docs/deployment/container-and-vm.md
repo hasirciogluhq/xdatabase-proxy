@@ -14,7 +14,7 @@ docker run -d --name xdatabase-proxy --restart unless-stopped \
   -e STATIC_BACKENDS="db1=10.0.0.5:5432,db1.pool=10.0.0.5:6432" \
   -e TLS_CERT_FILE=/tls/tls.crt -e TLS_KEY_FILE=/tls/tls.key -e TLS_AUTO_GENERATE=false \
   -v /etc/xdatabase/tls:/tls:ro \
-  ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2
+  ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0
 ```
 
 Notes:
@@ -29,7 +29,7 @@ Notes:
 ```yaml
 services:
   proxy:
-    image: ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2
+    image: ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0
     ports: ["5432:5432"]
     environment:
       STATIC_BACKENDS: app=postgres:5432,app.pool=pgbouncer:6432
@@ -50,11 +50,11 @@ Several protocols on one host:
 ```yaml
 services:
   proxy-pg:
-    image: ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2
+    image: ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0
     ports: ["5432:5432"]
     environment: { STATIC_BACKENDS: "app=postgres:5432" }
   proxy-redis:
-    image: ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2
+    image: ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0
     ports: ["6379:6379"]
     environment: { DATABASE_TYPE: redis, PROXY_START_PORT: "6379", HEALTH_SERVER_PORT: "8081", STATIC_BACKENDS: "cache=redis:6379" }
 ```
@@ -64,9 +64,9 @@ services:
 Build the binary (or copy it out of the image):
 
 ```bash
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v2.1.2" -o xdatabase-proxy ./cmd/proxy
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v2.2.0" -o xdatabase-proxy ./cmd/proxy
 # or
-docker create --name x ghcr.io/hasirciogluhq/xdatabase-proxy:2.1.2 && docker cp x:/xdatabase-proxy . && docker rm x
+docker create --name x ghcr.io/hasirciogluhq/xdatabase-proxy:2.2.0 && docker cp x:/xdatabase-proxy . && docker rm x
 ```
 
 systemd unit:

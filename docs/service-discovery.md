@@ -119,7 +119,7 @@ spec:
 - Services without a deployment id or without ports are ignored.
 - Services whose routing label does not allow the client's strategy are skipped.
 - If several Services still match one route, the lowest `namespace/name` wins and the proxy logs one warning per distinct set of candidates (`several services match one route …`), naming the chosen one and all candidates.
-- A destination-port label that matches no port fails the connection (`resolve failed`) instead of falling back to the first port (since main after 2.1.2; image 2.1.2 still falls back).
+- A destination-port label that matches no port fails the connection (`resolve failed`) instead of falling back to the first port (since 2.2.0; 2.1.x still falls back).
 - The proxy talks to the Service DNS name, so its pods need working cluster DNS. For other cluster domains set `CLUSTER_DOMAIN`.
 - Services in any namespace are found unless `WATCH_NAMESPACE` is set. Deployment ids are global across namespaces, so make them unique.
 
